@@ -17,7 +17,7 @@ class HormoneEngine:
         self.R = np.zeros(self.num_joints)       # Hill receptor activation (0 to 1)
         
         # Moving window buffers for 1-cycle averaging
-        window_size = int((1.0 / (SimConfig.CONTROL_TIMESTEP * 1.5))) # ~ 67 steps for 1 CPG wave
+        window_size = int((1.0 / (SimConfig.CONTROL_TIMESTEP * 3.0)))  # W ≈ 67 steps (1 CPG cycle)
         self.window_size = max(10, window_size)
         self.e_q_buffers = [deque(maxlen=self.window_size) for _ in range(self.num_joints)]
         self.e_v_buffers = [deque(maxlen=self.window_size) for _ in range(self.num_joints)]

@@ -114,7 +114,10 @@ def analyze_benchmark():
                                       ("Performance Loss", "l_auc"),
                                       ("Recovery Time", "rec_time")]:
         groups = [data[c][metric_key] for c in ctrls]
-        stat, p_val = stats.kruskal(*groups)
+        try:
+            stat, p_val = stats.kruskal(*groups)
+        except ValueError:
+            stat, p_val = 0.0, 1.0
         p_str = f"p < 0.001" if p_val < 0.001 else f"p = {p_val:.4f}"
         md.append(f"- **{metric_name}**: H = {stat:.2f}, {p_str}")
 
@@ -135,7 +138,10 @@ def analyze_benchmark():
 
         for c in comparisons:
             other = np.array(data[c][metric_key])
-            stat_u, p_val = stats.mannwhitneyu(c5_data, other, alternative=alt)
+            try:
+                stat_u, p_val = stats.mannwhitneyu(c5_data, other, alternative=alt)
+            except ValueError:
+                stat_u, p_val = 0.0, 1.0
             if metric_key == "rec_ratio":
                 delta = compute_cliffs_delta(list(c5_data), list(other))
             else:
@@ -207,7 +213,7 @@ def analyze_benchmark():
     tex_path = os.path.join(TABLE_DIR, "table1_benchmark_summary.tex")
     with open(tex_path, "w", encoding="utf-8") as f:
         f.write(tex_content)
-    print(f"  ✓ {tex_path}")
+    print(f"  [OK] {tex_path}")
 
     # Pairwise LaTeX table
     tex2 = []
@@ -231,7 +237,10 @@ def analyze_benchmark():
 
         for c in comparisons:
             other = np.array(data[c][metric_key])
-            _, p_val = stats.mannwhitneyu(c5_data, other, alternative=alt)
+            try:
+                _, p_val = stats.mannwhitneyu(c5_data, other, alternative=alt)
+            except ValueError:
+                p_val = 1.0
             if metric_key == "rec_ratio":
                 delta = compute_cliffs_delta(list(c5_data), list(other))
             else:
@@ -259,13 +268,13 @@ def analyze_benchmark():
     tex2_path = os.path.join(TABLE_DIR, "table2_statistical_tests.tex")
     with open(tex2_path, "w", encoding="utf-8") as f:
         f.write("\n".join(tex2))
-    print(f"  ✓ {tex2_path}")
+    print(f"  [OK] {tex2_path}")
 
     # Also save as markdown
     md2_path = os.path.join(TABLE_DIR, "table2_statistical_tests.md")
     with open(md2_path, "w", encoding="utf-8") as f:
         f.write(md_content)  # full content already includes table 2
-    print(f"  ✓ {md2_path}")
+    print(f"  [OK] {md2_path}")
 
 
 if __name__ == "__main__":

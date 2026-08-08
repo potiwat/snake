@@ -23,15 +23,17 @@ class ErrorAdaptiveCPGController:
         self.num_joints = num_joints
         self.cpg = SO2CPGNetwork(num_joints=num_joints)
         self.last_target = np.zeros(num_joints)
+        self.filtered_errors = np.zeros(num_joints)
 
     def step(self, feedback):
         actual_q = feedback["joint_angles"]
-        errors = np.abs(self.last_target - actual_q)
+        raw_errors = np.abs(self.last_target - actual_q)
+        self.filtered_errors = 0.92 * self.filtered_errors + 0.08 * raw_errors
         
         A0 = CPGConfig.DEFAULT_AMPLITUDE
         target_amps = np.zeros(self.num_joints)
         for i in range(self.num_joints):
-            if errors[i] > 0.15:
+            if self.filtered_errors[i] > 0.15:
                 target_amps[i] = A0 * 0.2  # drop failed joint
             else:
                 target_amps[i] = A0 * 1.25 # slight general boost
@@ -39,7 +41,7 @@ class ErrorAdaptiveCPGController:
         self.cpg.set_amplitudes(target_amps)
         target_angles = self.cpg.step()
         self.last_target = target_angles
-        return target_angles, {"errors": errors}
+        return target_angles, {"errors": self.filtered_errors}
 
 class ShapeBasedRecoveryController:
     """Controller C3: Rule-based shape recovery (Elsayed et al. baseline)."""
@@ -47,16 +49,18 @@ class ShapeBasedRecoveryController:
         self.num_joints = num_joints
         self.cpg = SO2CPGNetwork(num_joints=num_joints)
         self.last_target = np.zeros(num_joints)
+        self.filtered_errors = np.zeros(num_joints)
 
     def step(self, feedback):
         actual_q = feedback["joint_angles"]
-        errors = np.abs(self.last_target - actual_q)
+        raw_errors = np.abs(self.last_target - actual_q)
+        self.filtered_errors = 0.992 * self.filtered_errors + 0.008 * raw_errors
         
         A0 = CPGConfig.DEFAULT_AMPLITUDE
         target_amps = np.full(self.num_joints, A0)
         
         for i in range(self.num_joints):
-            if errors[i] > 0.2:
+            if self.filtered_errors[i] > 0.25:
                 target_amps[i] = A0 * 0.1 # freeze/reduce failed joint
                 if i > 0:
                     target_amps[i-1] = min(A0 * 1.5, RobotConfig.JOINT_LIMIT_MAX)

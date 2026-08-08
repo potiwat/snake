@@ -76,7 +76,10 @@ class AHMCPGController:
         for i in range(self.num_joints - 1):
             # Adjacent coupling decreases as either joint's receptor activation rises
             r_max = max(R[i], R[i+1])
-            normal_coupling[i] = max(0.05, 1.0 - r_max)
+            if r_max > 0.2:
+                normal_coupling[i] = 0.001
+            else:
+                normal_coupling[i] = 1.0 - r_max
             
         # Bypass Matrix: size (num_joints, num_joints)
         bypass_matrix = np.zeros((self.num_joints, self.num_joints))

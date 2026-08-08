@@ -63,15 +63,15 @@ def draw_graph_panel(w, h, time_buf, q_buf, h_buf, v_buf, fault_j, fault_time, c
     plot_w = w - margin_x - 30
 
     # Subpanel heights
-    h1 = 200 # Joint angles
-    h2 = 200 # Hormones
+    h1 = 190 # Joint angles
+    h2 = 190 # Hormones
     h3 = 180 # Speed
 
     y1 = 40
     y2 = 270
     y3 = 500
 
-    duration = 35.0
+    duration = SimConfig.DEFAULT_DURATION
 
     def time_to_x(t):
         return int(margin_x + (t / duration) * plot_w)
@@ -91,9 +91,9 @@ def draw_graph_panel(w, h, time_buf, q_buf, h_buf, v_buf, fault_j, fault_time, c
     # ── Subpanel 2: Local Hormone H_i ──
     cv2.rectangle(panel, (margin_x, y2), (margin_x + plot_w, y2 + h2), (255, 255, 255), -1)
     cv2.rectangle(panel, (margin_x, y2), (margin_x + plot_w, y2 + h2), (200, 200, 200), 1)
-    cv2.putText(panel, "Local Hormone Dynamics H_i (Spatial Diffusion & Decay)", (margin_x, y2 - 10),
+    cv2.putText(panel, "Normalized Local Hormone H_i (Spatial Diffusion & Decay)", (margin_x, y2 - 10),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.55, (30, 30, 30), 2)
-    cv2.putText(panel, "Hormone H_i", (10, y2 + h2 // 2),
+    cv2.putText(panel, "H_i", (10, y2 + h2 // 2),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.45, (80, 80, 80), 1)
 
     # ── Subpanel 3: Forward Speed ──
@@ -118,13 +118,14 @@ def draw_graph_panel(w, h, time_buf, q_buf, h_buf, v_buf, fault_j, fault_time, c
         t_arr = np.array(time_buf)
         xs = np.array([time_to_x(t) for t in t_arr])
 
-        # Subpanel 1 lines (deg range: -60 to +60)
+        # Subpanel 1 lines (deg range: -65 to +65)
         q_arr = np.rad2deg(np.array(q_buf))
         j_prev = max(0, fault_j - 1)
         j_next = min(7, fault_j + 1)
 
         def q_to_y(q_val):
-            return int(zero_y1 - (q_val / 65.0) * (h1 // 2 - 10))
+            q_c = np.clip(q_val, -65.0, 65.0)
+            return int(zero_y1 - (q_c / 65.0) * (h1 // 2 - 12))
 
         # Neighbor lines
         pts_prev = np.column_stack((xs, [q_to_y(val) for val in q_arr[:, j_prev]])).astype(np.int32)
@@ -135,38 +136,52 @@ def draw_graph_panel(w, h, time_buf, q_buf, h_buf, v_buf, fault_j, fault_time, c
         cv2.polylines(panel, [pts_next], False, (50, 180, 50), 1, cv2.LINE_AA) # Greenish
         cv2.polylines(panel, [pts_fail], False, (30, 30, 220), 2, cv2.LINE_AA) # Red failed
 
-        # Subpanel 2 lines (Hormone range: 0 to 4.0)
+        # Subpanel 2 lines (Normalized Hormone range: 0 to 1.0 - Auto-scaled for high visibility)
         h_arr = np.array(h_buf)
-        def h_to_y(h_val):
-            return int(y2 + h2 - 10 - (h_val / 4.0) * (h2 - 20))
+        # Dynamic scaling based on actual peak concentration (min 0.50) so variations are prominent & clear
+        h_max = max(0.50, float(np.max(h_arr)))
+        h_norm_arr = np.clip(h_arr / h_max, 0.0, 1.0)
 
-        h_prev_pts = np.column_stack((xs, [h_to_y(val) for val in h_arr[:, j_prev]])).astype(np.int32)
-        h_fail_pts = np.column_stack((xs, [h_to_y(val) for val in h_arr[:, fault_j]])).astype(np.int32)
+        def h_to_y(h_val_norm):
+            h_c = np.clip(h_val_norm, 0.0, 1.0)
+            return int(y2 + h2 - 12 - h_c * (h2 - 24))
+
+        h_prev_pts = np.column_stack((xs, [h_to_y(val) for val in h_norm_arr[:, j_prev]])).astype(np.int32)
+        h_fail_pts = np.column_stack((xs, [h_to_y(val) for val in h_norm_arr[:, fault_j]])).astype(np.int32)
 
         cv2.polylines(panel, [h_prev_pts], False, (180, 50, 180), 1, cv2.LINE_AA) # Purple
         cv2.polylines(panel, [h_fail_pts], False, (0, 120, 240), 2, cv2.LINE_AA) # Orange
 
-        # Subpanel 3 line (Speed range: 0 to 0.35 m/s)
+        # Subpanel 3 line (Moving Average Window Size = 180)
         v_arr = np.array(v_buf)
-        if len(v_arr) > 10:
-            w_win = min(20, len(v_arr))
-            v_smooth = np.convolve(v_arr, np.ones(w_win)/w_win, mode='same')
+        window_size = 180
+        if len(v_arr) >= window_size:
+            kernel = np.ones(window_size) / window_size
+            v_valid = np.convolve(v_arr, kernel, mode='valid')
+            initial_pad = [np.mean(v_arr[:idx+1]) for idx in range(window_size - 1)]
+            v_smooth = np.concatenate([initial_pad, v_valid])
+        elif len(v_arr) > 1:
+            v_smooth = np.array([np.mean(v_arr[:idx+1]) for idx in range(len(v_arr))])
         else:
             v_smooth = v_arr
 
+        # Subpanel 3 line (Speed scale range: 0.0 to 1.00 m/s without hard value clipping)
+        v_scale_max = 1.10  # ปรับเพิ่มสเกลแกน Y สูงสุดเป็น 1.10 m/s เพื่อให้รองรับค่าที่เกิน 0.65 โดยไม่ต้องตัดค่า
         def v_to_y(v_val):
-            return int(y3 + h3 - 10 - (v_val / 0.35) * (h3 - 20))
+            return int(y3 + h3 - 12 - (v_val / v_scale_max) * (h3 - 24))
 
         v_pts = np.column_stack((xs, [v_to_y(val) for val in v_smooth])).astype(np.int32)
         cv2.polylines(panel, [v_pts], False, (40, 160, 40), 2, cv2.LINE_AA) # Green
 
-    # Legends
+    # Legends & Live Readouts
     cv2.putText(panel, f"Joint {fault_j+1} (FAILED)", (margin_x + plot_w - 180, y1 + 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.42, (30, 30, 220), 1)
     cv2.putText(panel, f"Hormone H_{fault_j+1}", (margin_x + plot_w - 150, y2 + 20),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.42, (0, 120, 240), 1)
-    cv2.putText(panel, f"v_xy (m/s)", (margin_x + plot_w - 120, y3 + 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.42, (40, 160, 40), 1)
+
+    latest_v_ma = v_smooth[-1] if 'v_smooth' in locals() and len(v_smooth) > 0 else 0.0
+    cv2.putText(panel, f"v_xy (MA20): {latest_v_ma:.3f} m/s", (margin_x + plot_w - 210, y3 + 22),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.45, (30, 140, 30), 2)
 
     return panel
 
@@ -175,8 +190,8 @@ def render_splitscreen_video(
     controller_type="C5",
     fault_type=FaultType.LOCKED,
     fault_joint_idx=3,
-    fault_time=10.0,
-    duration=35.0,
+    fault_time=SimConfig.DEFAULT_FAULT_TIME,
+    duration=SimConfig.DEFAULT_DURATION,
     output_filepath=None,
 ):
     if output_filepath is None:
@@ -185,7 +200,7 @@ def render_splitscreen_video(
 
     os.makedirs(os.path.dirname(output_filepath), exist_ok=True)
 
-    env = SimulationEnvironment(gui=False)
+    env = SimulationEnvironment(gui=False, env_type=EnvironmentType.INCLINE, incline_deg=5.0)
     robot = SnakeRobot(physics_client=env.physics_client)
     controller = make_controller(controller_type, robot.num_joints)
 
@@ -301,8 +316,8 @@ def render_all_videos():
             controller_type=ctrl,
             fault_type=FaultType.LOCKED,
             fault_joint_idx=3,
-            fault_time=10.0,
-            duration=35.0
+            fault_time=SimConfig.DEFAULT_FAULT_TIME,
+            duration=SimConfig.DEFAULT_DURATION
         )
 
     print(f"\n  All 6 HD videos saved to {VIDEO_DIR}/\n", flush=True)
@@ -310,3 +325,10 @@ def render_all_videos():
 
 if __name__ == "__main__":
     render_all_videos()
+    #render_splitscreen_video(
+    #            controller_type="C5",
+    #            fault_type=FaultType.LOCKED,
+    #            fault_joint_idx=3,
+    #            fault_time=SimConfig.DEFAULT_FAULT_TIME,
+     #           duration=SimConfig.DEFAULT_DURATION
+    #        )

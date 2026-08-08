@@ -31,7 +31,7 @@ class CPGConfig:
     
     # Coupling Strengths
     COUPLING_WEIGHT_K0 = 1.20      # Nominal adjacent joint coupling weight
-    BYPASS_WEIGHT_KB = 1.60        # Dynamic bypass coupling weight K_B
+    BYPASS_WEIGHT_KB = 2.80        # Dynamic bypass coupling weight K_B
     
     # Rate limiters for safe adaptation
     MAX_AMP_CHANGE_RATE = 0.15     # rad/s max rate of change of joint amplitude
@@ -45,27 +45,27 @@ class HormoneConfig:
     W_P = 0.10
     
     # Hormone Dynamics
-    ALPHA_H = 0.75                 # Secretion rate from stimulus
+    ALPHA_H = 0.60                 # Secretion rate from stimulus (α_h, optimal sweep value)
     D0 = 0.04                      # Linear decay rate
     KD = 0.18                      # Nonlinear decay coefficient
     EXP_N = 2.0                    # Nonlinear decay exponent
-    DIFFUSION_DH = 0.22            # 1D spatial diffusion coefficient along spine
+    DIFFUSION_DH = 0.05            # 1D spatial diffusion coefficient along spine
     
     # Hill Receptor Activation R = H^m / (Kh^m + H^m)
-    KH = 0.35                      # 50% activation threshold
-    HILL_M = 3.0                   # Hill coefficient (steepness)
+    KH = 0.65                      # 50% activation threshold
+    HILL_M = 2.0                   # Hill coefficient (steepness)
     
     # Reconfiguration Gains
-    GAIN_AMP_DROP_GA = 0.85        # Amplitude reduction factor for failed joint
-    GAIN_NEIGHBOR_GN = 0.45        # Compensation boost for adjacent joints
-    NEIGHBOR_SIGMA = 1.2           # Spatial decay of neighbor compensation
-    GAIN_GLOBAL_FREQ_GW = 0.25     # Global frequency reduction under high stress
+    GAIN_AMP_DROP_GA = 0.150        # Amplitude reduction factor for failed joint
+    GAIN_NEIGHBOR_GN = 0.95        # Compensation boost for adjacent joints
+    NEIGHBOR_SIGMA = 1.42           # Spatial decay of neighbor compensation
+    GAIN_GLOBAL_FREQ_GW = 0.15     # Global frequency reduction under high stress
 
 class SimConfig:
     TIMESTEP = 0.005               # 200 Hz physics simulation rate
     CONTROL_TIMESTEP = 0.005       # 200 Hz CPG / Control loop rate
-    DEFAULT_DURATION = 35.0        # Seconds per simulation episode
-    DEFAULT_FAULT_TIME = 10.0      # Seconds into episode when fault is injected
+    DEFAULT_DURATION = 60.0        # Seconds per simulation episode
+    DEFAULT_FAULT_TIME = 18.0      # Seconds into episode when fault is injected
     
     # Ground Contact Physics & Anisotropic Snake Friction
     LATERAL_FRICTION = 0.8

@@ -25,7 +25,7 @@ from controllers.baselines import (
 from analysis.metrics import LocomotionMetrics
 
 def run_single_episode(
-    controller_type="C5",
+    controller_type="C3",
     fault_type=FaultType.LOCKED,
     fault_joint_idx=3,
     fault_time=SimConfig.DEFAULT_FAULT_TIME,
@@ -34,7 +34,7 @@ def run_single_episode(
     env_type=EnvironmentType.FLAT,
     seed=42,
     record_video=False,
-    video_filepath="results/videos/simulation.mp4"
+    video_filepath="results/videos/c3_simulation.mp4"
 ):
     np.random.seed(seed)
     env = SimulationEnvironment(
@@ -145,12 +145,14 @@ def run_single_episode(
     return history, results
 
 if __name__ == "__main__":
-    print("Running test episode with Proposed AHM-CPG (C5) under Locked Joint failure...")
+    print("Running test episode with Shape-Based Recovery CPG (C5) under Locked Joint failure...")
     history, res = run_single_episode(
         controller_type="C5",
         fault_type=FaultType.LOCKED,
         fault_joint_idx=3,
-        gui=False
+        gui=False,
+        record_video=True,
+        video_filepath="results/videos/c5_simulation.mp4"
     )
     print("\n=== Single Episode Metrics ===")
     for k, v in res.items():

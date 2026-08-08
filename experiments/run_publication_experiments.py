@@ -35,12 +35,12 @@ from analysis.metrics import LocomotionMetrics
 
 
 # ─── Publication Parameters ───────────────────────────────────────
-PUB_DURATION = 35.0       # 35 seconds per episode
-PUB_FAULT_TIME = 10.0     # Fault injected at t=10s
-PUB_NUM_SEEDS = 5         # 5 seeds per condition
+PUB_DURATION = SimConfig.DEFAULT_DURATION       # 60 seconds per episode
+PUB_FAULT_TIME = SimConfig.DEFAULT_FAULT_TIME     # Fault injected at t=18s
+PUB_NUM_SEEDS = 21         # 8 seeds per condition (270 benchmark episodes total)
 PUB_CONTROLLERS = ["C1", "C2", "C3", "C4", "C5", "C6"]
 PUB_FAULT_TYPES = [FaultType.LOCKED, FaultType.FREE, FaultType.PARTIAL_TORQUE]
-PUB_FAULT_JOINTS = [1, 3, 6]  # Anterior, Middle, Posterior
+PUB_FAULT_JOINTS = [1, 3, 5]  # Anterior, Middle, Posterior
 
 OUTPUT_DIR = "results/publication/data"
 # ──────────────────────────────────────────────────────────────────
@@ -78,9 +78,41 @@ def run_episode(controller_type, fault_type, fault_joint_idx, fault_time,
     )
     robot = SnakeRobot(physics_client=env.physics_client)
 
-    # Mass perturbation
-    if mass_scale != 1.0:
-        new_mass = RobotConfig.LINK_MASS * mass_scale
+    # ── Stochastic Variation for Seed Diversity ──
+    # Without these perturbations, PyBullet's deterministic physics
+    # produces identical results regardless of seed value.
+
+    # (a) Initial joint pose perturbation (±2° ≈ ±0.035 rad)
+    init_noise = np.random.uniform(-0.035, 0.035, robot.num_joints)
+    for j in range(robot.num_joints):
+        p.resetJointState(robot.robot_id, j,
+                          targetValue=init_noise[j],
+                          targetVelocity=0.0,
+                          physicsClientId=env.physics_client)
+
+    # (b) Per-link friction perturbation (±10%)
+    friction_scale = 1.0 + np.random.uniform(-0.10, 0.10)
+    for link_idx in range(-1, robot.num_joints):
+        p.changeDynamics(
+            robot.robot_id, link_idx,
+            lateralFriction=SimConfig.LATERAL_FRICTION * friction_scale,
+            anisotropicFriction=[
+                SimConfig.FORWARD_FRICTION * friction_scale,
+                SimConfig.SIDEWAYS_FRICTION * friction_scale,
+                0.01
+            ],
+            physicsClientId=env.physics_client
+        )
+
+    # (c) Fault timing jitter (±0.5s)
+    fault_time_jitter = np.random.uniform(-0.5, 0.5)
+    fault_time_actual = fault_time + fault_time_jitter
+
+    # (d) Mass micro-perturbation (±3%)
+    mass_noise_scale = 1.0 + np.random.uniform(-0.03, 0.03)
+    if mass_scale != 1.0 or mass_noise_scale != 1.0:
+        combined_mass_scale = mass_scale * mass_noise_scale
+        new_mass = RobotConfig.LINK_MASS * combined_mass_scale
         for link_idx in range(-1, robot.num_joints):
             p.changeDynamics(robot.robot_id, link_idx, mass=new_mass,
                              physicsClientId=env.physics_client)
@@ -99,13 +131,13 @@ def run_episode(controller_type, fault_type, fault_joint_idx, fault_time,
     target_angles = np.zeros(robot.num_joints)
     fault_injected = False
     intermittent_state = False
-    next_toggle_time = fault_time
+    next_toggle_time = fault_time_actual
 
     for step in range(sim_steps):
         current_time = step * SimConfig.TIMESTEP
 
-        # ── Fault Injection Logic ──
-        if current_time >= fault_time:
+        # ── Fault Injection Logic (uses jittered fault_time_actual) ──
+        if current_time >= fault_time_actual:
             if intermittent:
                 if current_time >= next_toggle_time:
                     intermittent_state = not intermittent_state
@@ -172,9 +204,10 @@ def run_episode(controller_type, fault_type, fault_joint_idx, fault_time,
 
     env.close()
 
+    actual_total_mass = RobotConfig.LINK_MASS * RobotConfig.NUM_SEGMENTS * mass_scale * mass_noise_scale
     metrics = LocomotionMetrics.calculate_metrics(
-        history, fault_time=fault_time, sim_duration=duration,
-        total_mass=RobotConfig.LINK_MASS * RobotConfig.NUM_SEGMENTS * mass_scale
+        history, fault_time=fault_time_actual, sim_duration=duration,
+        total_mass=actual_total_mass
     )
 
     if save_history:

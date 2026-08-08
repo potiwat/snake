@@ -10,6 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from config import SimConfig
+
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -64,7 +66,7 @@ def load_detail(ctrl):
 # ═══════════════════════════════════════════════════════════════════
 def fig01_velocity_recovery():
     fig, ax = plt.subplots(figsize=(7, 3.5))
-    fault_time = 10.0
+    fault_time = SimConfig.DEFAULT_FAULT_TIME
 
     for ctrl in ["C1", "C2", "C3", "C4", "C5", "C6"]:
         data = load_detail(ctrl)
@@ -90,7 +92,7 @@ def fig01_velocity_recovery():
     ax.set_ylabel('Planar Speed $v_{xy}$ (m/s)')
     ax.set_title('Forward Velocity Recovery Under Locked Joint Failure (Joint 4)')
     ax.legend(loc='upper right', ncol=2, framealpha=0.9)
-    ax.set_xlim(0, 35)
+    ax.set_xlim(0, 60)
     ax.set_ylim(bottom=-0.01)
 
     path = os.path.join(FIG_DIR, "fig01_velocity_recovery.png")
@@ -107,16 +109,19 @@ def fig02_hormone_heatmap():
     t = np.array(data["history"]["time"])
     H = np.array(data["history"]["hormones"])
 
+    H_max = np.max(H) if np.max(H) > 0 else 1.0
+    H_norm = np.clip(H / H_max, 0.0, 1.0)
+
     fig, ax = plt.subplots(figsize=(7, 3))
     extent = [t[0], t[-1], 0.5, H.shape[1] + 0.5]
-    im = ax.imshow(H.T, aspect='auto', origin='lower', cmap='YlOrRd',
-                   extent=extent, interpolation='bicubic', vmin=0)
+    im = ax.imshow(H_norm.T, aspect='auto', origin='lower', cmap='YlOrRd',
+                   extent=extent, interpolation='bicubic', vmin=0, vmax=1.0)
 
     cbar = fig.colorbar(im, ax=ax, pad=0.02)
-    cbar.set_label('Hormone $H_i$', rotation=270, labelpad=14)
+    cbar.set_label('Normalized Hormone $H_i$ [0, 1]', rotation=270, labelpad=14)
 
-    ax.axvline(x=10.0, color='cyan', linestyle='--', linewidth=1.5,
-               label='Fault @ $t=10$s')
+    ax.axvline(x=SimConfig.DEFAULT_FAULT_TIME, color='cyan', linestyle='--', linewidth=1.5,
+               label='Fault @ $t={}$s'.format(SimConfig.DEFAULT_FAULT_TIME))
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Joint Index')
     ax.set_title('Spatial-Temporal Hormone Dynamics $H_i(t)$ — Proposed AHM-CPG (C5)')
@@ -140,7 +145,10 @@ def fig03_joint_trajectories():
     H = np.array(data["history"]["hormones"])
     fault_joint = 3
 
-    fig, axes = plt.subplots(8, 1, figsize=(7, 12), sharex=True)
+    H_max = np.max(H) if np.max(H) > 0 else 1.0
+    H_norm = np.clip(H / H_max, 0.0, 1.0)
+
+    fig, axes = plt.subplots(8, 1, figsize=(8, 13), sharex=True, gridspec_kw={'hspace': 0.45})
 
     for i in range(8):
         ax = axes[i]
@@ -154,13 +162,13 @@ def fig03_joint_trajectories():
                 label='Actual $q$')
 
         ax2 = ax.twinx()
-        ax2.fill_between(t, 0, H[:, i], color='orange', alpha=0.15)
-        ax2.plot(t, H[:, i], ':', color='darkorange', linewidth=1.0,
-                 label='$H_i$')
-        ax2.set_ylim(-0.1, 4.5)
-        ax2.set_ylabel(f'$H_{{{i+1}}}$', color='darkorange', fontsize=8)
+        ax2.fill_between(t, 0, H_norm[:, i], color='orange', alpha=0.18)
+        ax2.plot(t, H_norm[:, i], ':', color='darkorange', linewidth=1.1,
+                 label='Hormone $H_i$')
+        ax2.set_ylim(-0.02, 1.05)
+        ax2.set_ylabel(f'$H_{{{i+1}}}$ [0-1]', color='darkorange', fontsize=7)
 
-        ax.axvline(x=10.0, color='red', linestyle=':', linewidth=0.8, alpha=0.6)
+        ax.axvline(x=SimConfig.DEFAULT_FAULT_TIME, color='red', linestyle=':', linewidth=0.8, alpha=0.6)
         title = f'Joint {i+1}' + (' — LOCKED FAULT' if is_failed else '')
         ax.set_ylabel('Angle (°)', fontsize=8)
         ax.set_title(title, fontsize=9, loc='left',
@@ -175,8 +183,8 @@ def fig03_joint_trajectories():
 
     axes[-1].set_xlabel('Time (s)')
     fig.suptitle('Per-Joint Trajectories & Hormone Response — C5 AHM-CPG',
-                 fontsize=13, fontweight='bold', y=1.0)
-    plt.tight_layout()
+                 fontsize=13, fontweight='bold', y=0.99)
+    fig.subplots_adjust(top=0.95, bottom=0.05, hspace=0.50, left=0.10, right=0.90)
 
     path = os.path.join(FIG_DIR, "fig03_joint_trajectories.png")
     plt.savefig(path)
@@ -195,12 +203,12 @@ def fig04_receptor_heatmap():
     fig, ax = plt.subplots(figsize=(7, 3))
     extent = [t[0], t[-1], 0.5, R.shape[1] + 0.5]
     im = ax.imshow(R.T, aspect='auto', origin='lower', cmap='RdPu',
-                   extent=extent, interpolation='bicubic', vmin=0, vmax=1)
+                   extent=extent, interpolation='bicubic', vmin=0, vmax=1.0)
 
     cbar = fig.colorbar(im, ax=ax, pad=0.02)
     cbar.set_label('Receptor $R_i$', rotation=270, labelpad=14)
 
-    ax.axvline(x=10.0, color='cyan', linestyle='--', linewidth=1.5)
+    ax.axvline(x=SimConfig.DEFAULT_FAULT_TIME, color='cyan', linestyle='--', linewidth=1.5)
     ax.set_xlabel('Time (s)')
     ax.set_ylabel('Joint Index')
     ax.set_title('Hill Receptor Activation $R_i(t)$ — Proposed AHM-CPG (C5)')
@@ -292,13 +300,14 @@ def fig06_generalization():
     for i, c in enumerate(ctrls):
         means = []
         stds = []
+        mins = []
         for mode in modes:
             vals = [r["metrics"]["recovery_ratio"]
                     for r in records
                     if r["controller"] == c and r["stress_mode"] == mode]
             means.append(np.mean(vals) if vals else 0.0)
-            stds.append(np.std(vals) if vals else 0.0)
-
+            stds.append(np.nanstd(vals) if vals else 0.0)
+            
         offset = (i - len(ctrls) / 2.0 + 0.5) * width
         bars = ax.bar(x + offset, means, width, yerr=stds, capsize=3,
                       label=LABELS.get(c, c), color=COLORS.get(c, 'gray'),
@@ -401,14 +410,20 @@ def fig08_bypass_ablation():
     axes[0, 1].set_ylabel('Angle (°)')
     axes[0, 1].set_ylim(-55, 55)
 
-    # Hormone at fault joint
-    axes[1, 0].plot(t5, h5[:, fault_j], color=COLORS["C5"], linewidth=1.5,
+    # Hormone at fault joint (normalized to [0, 1])
+    h5_max = np.max(h5) if np.max(h5) > 0 else 1.0
+    h6_max = np.max(h6) if np.max(h6) > 0 else 1.0
+    h5_norm = np.clip(h5 / h5_max, 0.0, 1.0)
+    h6_norm = np.clip(h6 / h6_max, 0.0, 1.0)
+
+    axes[1, 0].plot(t5, h5_norm[:, fault_j], color=COLORS["C5"], linewidth=1.5,
                     label='C5')
-    axes[1, 0].plot(t6, h6[:, fault_j], color=COLORS["C6"], linewidth=1.5,
+    axes[1, 0].plot(t6, h6_norm[:, fault_j], color=COLORS["C6"], linewidth=1.5,
                     label='C6')
     axes[1, 0].axvline(10, color='red', linestyle=':', alpha=0.5)
-    axes[1, 0].set_title(f'Hormone $H_{{{fault_j + 1}}}$ at Fault Joint', fontweight='bold')
-    axes[1, 0].set_ylabel('$H_i$')
+    axes[1, 0].set_title(f'Normalized Hormone $H_{{{fault_j + 1}}}$ at Fault Joint', fontweight='bold')
+    axes[1, 0].set_ylabel('Hormone $H_i$ [0-1]')
+    axes[1, 0].set_ylim(-0.02, 1.05)
     axes[1, 0].set_xlabel('Time (s)')
     axes[1, 0].legend(fontsize=7)
 
