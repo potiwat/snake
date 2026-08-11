@@ -1,0 +1,52 @@
+{
+  "protocol_id": "snake-hermes-solver800-flat-confirmatory-v1",
+  "status": "approved_design_pending_git_freeze",
+  "approved_by_user": true,
+  "confirmatory_authorized": false,
+  "authorization_blocker": "Git baseline commit and normalized hash registry are required before simulation outcomes.",
+  "evidence_boundary": {
+    "preexisting_solver800_artifacts": "exploratory_execution_only",
+    "selection_prohibited_from_preexisting_outcomes": [
+      "controller",
+      "SESOI",
+      "seed_count",
+      "terrain_subset",
+      "primary_outcome"
+    ]
+  },
+  "physics": {
+    "solver_iterations": 800,
+    "duration_s": 10.0,
+    "fault_time_s": 4.0,
+    "locked_joint_drift_gate_rad": 0.001,
+    "locked_joint_drift_gate": "onset_inclusive_and_steady_state"
+  },
+  "primary_confirmatory": {
+    "environment": "flat",
+    "controllers": ["C1", "C2", "C3", "C4", "C5", "C6"],
+    "proposed_controller": "C5",
+    "control_controllers": ["C1", "C2", "C3", "C4", "C6"],
+    "faults": ["locked", "free", "partial_torque"],
+    "fault_joints": [1, 3, 5],
+    "seeds": [101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120],
+    "primary_outcome": "forward_progress_delta_m",
+    "contrast": "C5_delta_minus_control_delta",
+    "favorable_direction": "positive",
+    "sesoi_m": 0.2,
+    "sesoi_rationale": "0.2 m is 18.2% of the 1.098 m nominal body length; it was declared without using current controller effect estimates.",
+    "planned_tests": 15,
+    "multiplicity": "Bonferroni",
+    "alpha_bonferroni": 0.0033333333333333335,
+    "permutations": 5000,
+    "bootstrap_resamples": 5000,
+    "resizing_policy": "none; fixed 20 held-out paired seeds"
+  },
+  "secondary_ood": {
+    "environments": ["low_friction", "variable_friction", "incline"],
+    "analysis_scope": "separate_from_flat_primary",
+    "planned_controller_contrast_tests": 45,
+    "multiplicity": "Bonferroni within secondary OOD family",
+    "alpha_bonferroni": 0.0011111111111111111
+  },
+  "interpretation_rule": "Practical primary benefit requires favorable direction, permutation p below the declared Bonferroni alpha, and mean difference at least the SESOI. All secondary metrics and null results remain reported."
+}

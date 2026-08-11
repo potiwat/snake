@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+.env
+.env.*
+*.log
+
+# Regenerable or bulky research artifacts stay out of the source baseline.
+# The freeze registry will name/hash the specific solver-800 raw artifacts used
+# for the confirmatory protocol; it must not silently mix superseded outputs.
+results/
+results_old_backup/
+*.mp4
+*.zip
