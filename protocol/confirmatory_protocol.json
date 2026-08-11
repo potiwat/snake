@@ -1,9 +1,9 @@
 {
   "protocol_id": "snake-hermes-solver800-flat-confirmatory-v1",
-  "status": "approved_design_pending_git_freeze",
+  "status": "frozen_for_confirmatory",
   "approved_by_user": true,
-  "confirmatory_authorized": false,
-  "authorization_blocker": "Git baseline commit and normalized hash registry are required before simulation outcomes.",
+  "confirmatory_authorized": true,
+  "authorization_blocker": null,
   "evidence_boundary": {
     "preexisting_solver800_artifacts": "exploratory_execution_only",
     "selection_prohibited_from_preexisting_outcomes": [

@@ -1,0 +1,47 @@
+{
+  "status": "frozen_for_confirmatory",
+  "code_freeze_commit": "de65c04afe938e2e042db9c057cb3716910adf15",
+  "protocol_path": "protocol/confirmatory_protocol.json",
+  "entries": [
+    {
+      "path": "protocol/confirmatory_protocol.json",
+      "normalized_sha256": "138ffb01ce917bde9f1c2a563915dd15a10449295ccbeac98d156e92ba3d72a4"
+    },
+    {
+      "path": "config.py",
+      "normalized_sha256": "12b51f61401cd3b387e665cc874bfca832cef0ea6f7f2ff8ada9001239d709d8"
+    },
+    {
+      "path": "experiments/run_paired_capability_benchmark.py",
+      "normalized_sha256": "42b264461e5b9de743c87f5bf72506f80a4c5012601a2a10ae70f836f695941c"
+    },
+    {
+      "path": "experiments/run_single.py",
+      "normalized_sha256": "be5eb17d5629465c72a22da8045ab0f44ffb262ed79033d87c8bd40086c636e0"
+    },
+    {
+      "path": "simulation/environments.py",
+      "normalized_sha256": "29af75469d0d298517aefdd89e92495e64b8b2fc3bc6e02ff7a39dfc71f16d49"
+    },
+    {
+      "path": "simulation/snake_robot.py",
+      "normalized_sha256": "860344c6333be86d6bafcb419fa278fceb23357e39836abff61aa005ed362ac5"
+    },
+    {
+      "path": "analysis/statistics_controller_contrasts.py",
+      "normalized_sha256": "c297a698b757b632b259e363f2521fc76021bb7e6a56c2f5ac3bc1d83f8b5aaf"
+    },
+    {
+      "path": "analysis/freeze_gate.py",
+      "normalized_sha256": "1a348387d438d850ba31d570642b4a870bcdb54d7d7ac4ac6b2c243f70cb39b7"
+    },
+    {
+      "path": "tests/test_statistics_controller_contrasts.py",
+      "normalized_sha256": "0904e3a49544621a171d2084c55ff3a01cba2068732a2dc82bd1fab6748bcab1"
+    },
+    {
+      "path": "tests/test_freeze_gate.py",
+      "normalized_sha256": "8fa6f34627c0bc97ed31057c1d22d94be04c5ed83980ccf2e01b6f867e7fc146"
+    }
+  ]
+}
