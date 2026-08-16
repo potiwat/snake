@@ -100,13 +100,20 @@ def draw_graph_panel(w, h, time_buf, q_buf, h_buf, v_buf, fault_j, fault_time, c
     cv2.putText(panel, "H_i Level", (5, y2 - 10),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.42, (80, 80, 80), 1)
 
-    # Subpanel 2 Y-axis Ticks & Horizontal Grid Lines (1.00, 0.75, 0.50, 0.25, 0.00)
-    h_ticks = [1.00, 0.75, 0.50, 0.25, 0.00]
-    for h_val in h_ticks:
-        y_pos = int(y2 + h2 - 12 - h_val * (h2 - 24))
+    # Subpanel 2 Dynamic Y-axis Ticks & Horizontal Grid Lines matching h_max
+    if len(h_buf) > 0:
+        h_arr_temp = np.array(h_buf)
+        h_max_curr = max(0.50, float(np.max(h_arr_temp)))
+    else:
+        h_max_curr = 1.00
+
+    h_ticks_norm = [1.00, 0.75, 0.50, 0.25, 0.00]
+    for norm_ratio in h_ticks_norm:
+        y_pos = int(y2 + h2 - 12 - norm_ratio * (h2 - 24))
+        actual_val = norm_ratio * h_max_curr
         cv2.line(panel, (margin_x, y_pos), (margin_x + plot_w, y_pos), (235, 235, 235), 1)
         cv2.line(panel, (margin_x - 5, y_pos), (margin_x, y_pos), (120, 120, 120), 1)
-        cv2.putText(panel, f"{h_val:.2f}", (margin_x - 52, y_pos + 4),
+        cv2.putText(panel, f"{actual_val:.2f}", (margin_x - 52, y_pos + 4),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.38, (60, 60, 60), 1)
 
     # ── Subpanel 3: Forward Speed ──
@@ -355,13 +362,13 @@ def render_all_videos_parallel():
     print(f"  Fast GPU & Multi-Core ({num_workers} Workers) Split-Screen Video Renderer", flush=True)
     print(f"{'='*70}\n", flush=True)
 
-    ctrls = ["C5"]
+    ctrls = ["C1", "C2", "C3", "C4", "C5", "C6"]
     pool = Pool(processes=num_workers)
     try:
         pool.map(_video_worker, ctrls)
     finally:
-        pool.terminate()
         pool.close()
+        pool.join()
 
     print(f"\n  All 6 HD GPU-accelerated videos saved to {VIDEO_DIR}/\n", flush=True)
 

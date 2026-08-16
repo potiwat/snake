@@ -1,5 +1,7 @@
 """
 Snake Robot PyBullet MultiBody Model & Fault Injector.
+Supports multi-joint simultaneous faults, explicit locked angles, limp/free modes,
+and dynamic friction adaptation.
 """
 
 import pybullet as p
@@ -11,6 +13,7 @@ class FaultType:
     NONE = "none"
     LOCKED = "locked"
     FREE = "free"
+    LIMP = "free"  # Alias for unpowered passive joint
     PARTIAL_TORQUE = "partial_torque"
 
 class SnakeRobot:
@@ -26,12 +29,54 @@ class SnakeRobot:
         self.joint_indices = list(range(self.num_joints))
         self._setup_motors()
         
-        # Fault state tracking
-        self.fault_active = False
-        self.fault_joint_idx = None
-        self.fault_type = FaultType.NONE
-        self.fault_params = {}
-        self.locked_angle = 0.0
+        # Multi-joint fault storage dictionary:
+        # mapping: joint_idx -> {'type': fault_type, 'params': dict(locked_angle=..., gamma_f=...)}
+        self.active_faults = {}
+
+    @property
+    def fault_active(self):
+        """Returns True if any joint fault is active."""
+        return len(self.active_faults) > 0
+
+    @fault_active.setter
+    def fault_active(self, val):
+        if not val:
+            self.clear_faults()
+
+    @property
+    def fault_joint_idx(self):
+        """Primary/latest active fault joint index (backward compatibility)."""
+        if self.active_faults:
+            return list(self.active_faults.keys())[-1]
+        return None
+
+    @property
+    def fault_joint_indices(self):
+        """List of all active faulty joint indices."""
+        return list(self.active_faults.keys())
+
+    @property
+    def fault_type(self):
+        """Primary/latest active fault type (backward compatibility)."""
+        if self.active_faults:
+            return list(self.active_faults.values())[-1]["type"]
+        return FaultType.NONE
+
+    @property
+    def fault_params(self):
+        """Primary/latest active fault params (backward compatibility)."""
+        if self.active_faults:
+            return list(self.active_faults.values())[-1]["params"]
+        return {}
+
+    @property
+    def locked_angle(self):
+        """Primary/latest locked angle (backward compatibility)."""
+        if self.active_faults:
+            info = list(self.active_faults.values())[-1]
+            if info["type"] == FaultType.LOCKED:
+                return info["params"].get("locked_angle", 0.0)
+        return 0.0
 
     def _build_snake_model(self, base_position):
         """Build a 9-link snake robot with 8 Yaw revolute joints in PyBullet."""
@@ -39,7 +84,6 @@ class SnakeRobot:
         link_rad = RobotConfig.LINK_RADIUS
         link_mass = RobotConfig.LINK_MASS
         
-        # Visual & Collision shapes for cylindrical segment
         visual_shape = p.createVisualShape(
             shapeType=p.GEOM_CYLINDER,
             radius=link_rad,
@@ -57,15 +101,11 @@ class SnakeRobot:
         link_masses = [link_mass] * self.num_joints
         link_collision_shapes = [collision_shape] * self.num_joints
         link_visual_shapes = [visual_shape] * self.num_joints
-        
-        # Link positions relative to parent joint
         link_positions = [[0, link_len, 0]] * self.num_joints
         link_orientations = [[0, 0, 0, 1]] * self.num_joints
-        parent_indices = list(range(self.num_joints)) # 0 is base, 1 is child of 0, etc.
-        
-        # Joint types (all Revolute around Z axis for Yaw motion)
+        parent_indices = list(range(self.num_joints))
         joint_types = [p.JOINT_REVOLUTE] * self.num_joints
-        joint_axes = [[0, 0, 1]] * self.num_joints # Yaw axis
+        joint_axes = [[0, 0, 1]] * self.num_joints
         
         robot_id = p.createMultiBody(
             baseMass=link_mass,
@@ -86,7 +126,7 @@ class SnakeRobot:
             physicsClientId=self.pc
         )
         
-        # Set link friction properties for anisotropic snake scale propulsion
+        # Set anisotropic friction on base and all links
         for link_idx in range(-1, self.num_joints):
             p.changeDynamics(
                 robot_id, link_idx,
@@ -109,28 +149,82 @@ class SnakeRobot:
                 physicsClientId=self.pc
             )
 
+    def set_friction(self, lateral_friction=0.8, anisotropic_friction=None):
+        """Update friction dynamics for base and all links."""
+        if anisotropic_friction is None:
+            anisotropic_friction = [SimConfig.FORWARD_FRICTION, SimConfig.SIDEWAYS_FRICTION, 0.01]
+        for link_idx in range(-1, self.num_joints):
+            p.changeDynamics(
+                self.robot_id, link_idx,
+                lateralFriction=lateral_friction,
+                anisotropicFriction=anisotropic_friction,
+                physicsClientId=self.pc
+            )
+
     def inject_fault(self, joint_idx, fault_type, params=None):
-        """Inject a joint failure into the robot model."""
+        """Inject a joint failure into the robot model. Supports simultaneous multi-joint faults."""
         if joint_idx < 0 or joint_idx >= self.num_joints:
             raise ValueError(f"Invalid joint index: {joint_idx}")
             
-        self.fault_active = True
-        self.fault_joint_idx = joint_idx
-        self.fault_type = fault_type
-        self.fault_params = params or {}
+        if fault_type == FaultType.NONE:
+            self.clear_fault(joint_idx)
+            return
+            
+        fault_params = dict(params or {})
         
         if fault_type == FaultType.LOCKED:
-            joint_state = p.getJointState(self.robot_id, joint_idx, physicsClientId=self.pc)
-            self.locked_angle = joint_state[0]
+            if "locked_angle" not in fault_params or fault_params["locked_angle"] is None:
+                joint_state = p.getJointState(self.robot_id, joint_idx, physicsClientId=self.pc)
+                fault_params["locked_angle"] = float(joint_state[0])
+            else:
+                fault_params["locked_angle"] = float(fault_params["locked_angle"])
+                
+        self.active_faults[joint_idx] = {
+            "type": fault_type,
+            "params": fault_params
+        }
+
+    def clear_faults(self):
+        """Clear all active joint faults."""
+        self.active_faults.clear()
+
+    def clear_fault(self, joint_idx):
+        """Clear fault for a specific joint."""
+        if joint_idx in self.active_faults:
+            del self.active_faults[joint_idx]
+
+    def inject_faults(self, faults_spec):
+        """Batch inject multiple faults simultaneously."""
+        if isinstance(faults_spec, dict):
+            for j_idx, info in faults_spec.items():
+                self.inject_fault(j_idx, info.get("type", FaultType.LOCKED), info.get("params", {}))
+        elif isinstance(faults_spec, (list, tuple)):
+            for item in faults_spec:
+                if isinstance(item, int):
+                    self.inject_fault(item, FaultType.LOCKED)
+                elif isinstance(item, (tuple, list)):
+                    j_idx = item[0]
+                    ftype = item[1] if len(item) > 1 else FaultType.LOCKED
+                    fparams = item[2] if len(item) > 2 else {}
+                    self.inject_fault(j_idx, ftype, fparams)
+                elif isinstance(item, dict):
+                    j_idx = item["joint_idx"]
+                    ftype = item.get("fault_type", item.get("type", FaultType.LOCKED))
+                    fparams = item.get("params", {})
+                    self.inject_fault(j_idx, ftype, fparams)
 
     def apply_joint_commands(self, target_angles):
         """Apply high-precision target joint angles via PyBullet motor control with fault injection."""
         applied_torques = []
         
         for i in range(self.num_joints):
-            if self.fault_active and i == self.fault_joint_idx:
-                if self.fault_type == FaultType.LOCKED:
-                    target_q = self.locked_angle
+            if i in self.active_faults:
+                fault_info = self.active_faults[i]
+                ftype = fault_info["type"]
+                fparams = fault_info.get("params", {})
+                
+                if ftype == FaultType.LOCKED:
+                    target_q = fparams.get("locked_angle", 0.0)
                     p.setJointMotorControl2(
                         self.robot_id, i,
                         controlMode=p.POSITION_CONTROL,
@@ -141,8 +235,8 @@ class SnakeRobot:
                     applied_torques.append(RobotConfig.MAX_TORQUE)
                     continue
                     
-                elif self.fault_type == FaultType.FREE:
-                    # Unpowered loose joint: force = 0
+                elif ftype in [FaultType.FREE, FaultType.LIMP, "limp"]:
+                    # Unpowered loose joint: zero motor force
                     p.setJointMotorControl2(
                         self.robot_id, i,
                         controlMode=p.VELOCITY_CONTROL,
@@ -153,8 +247,8 @@ class SnakeRobot:
                     applied_torques.append(0.0)
                     continue
                     
-                elif self.fault_type == FaultType.PARTIAL_TORQUE:
-                    gamma_f = self.fault_params.get("gamma_f", 0.3)
+                elif ftype == FaultType.PARTIAL_TORQUE:
+                    gamma_f = fparams.get("gamma_f", 0.3)
                     p.setJointMotorControl2(
                         self.robot_id, i,
                         controlMode=p.POSITION_CONTROL,
@@ -165,7 +259,7 @@ class SnakeRobot:
                     applied_torques.append(gamma_f * RobotConfig.MAX_TORQUE)
                     continue
 
-            # High-precision POSITION_CONTROL tracking for active normal joints
+            # Normal intact joint control
             p.setJointMotorControl2(
                 self.robot_id, i,
                 controlMode=p.POSITION_CONTROL,

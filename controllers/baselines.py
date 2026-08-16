@@ -134,23 +134,46 @@ class AHMNobypassCPGController:
         gn = HormoneConfig.GAIN_NEIGHBOR_GN
         sigma = HormoneConfig.NEIGHBOR_SIGMA
         
-        target_amplitudes = np.zeros(self.num_joints)
+        target_amplitudes = np.full(self.num_joints, A0)
         for j in range(self.num_joints):
-            a_drop = 1.0 - ga * R[j]
-            comp_sum = 0.0
-            for i in range(self.num_joints):
-                if i != j and R[i] > 0.1:
-                    dist = abs(j - i)
-                    comp_sum += R[i] * np.exp(-dist / sigma)
-            a_boost = 1.0 + gn * comp_sum
-            target_amplitudes[j] = np.clip(A0 * a_drop * a_boost, 0.05, RobotConfig.JOINT_LIMIT_MAX)
+            if R[j] > 0.25:
+                target_amplitudes[j] = A0 * max(0.08, 1.0 - ga * R[j])
+            else:
+                comp_sum = 0.0
+                for i in range(self.num_joints):
+                    if i != j and R[i] > 0.25:
+                        dist = abs(j - i)
+                        comp_sum += R[i] * np.exp(-dist / sigma)
+                a_boost = 1.0 + gn * comp_sum
+                target_amplitudes[j] = np.clip(A0 * a_boost, A0, RobotConfig.JOINT_LIMIT_MAX)
             
         self.cpg.set_amplitudes(target_amplitudes)
-        freq_scale = 1.0 - HormoneConfig.GAIN_GLOBAL_FREQ_GW * H_G
+        freq_scale = np.clip(1.0 - HormoneConfig.GAIN_GLOBAL_FREQ_GW * H_G, 0.85, 1.15)
         self.cpg.set_global_frequency_scale(freq_scale)
         
-        # Standard adjacent coupling without bypass matrix
-        target_angles = self.cpg.step()
+        # Standard adjacent coupling with decoupling at lesion, but NO bypass matrix
+        normal_coupling = np.ones(self.num_joints - 1)
+        for i in range(self.num_joints - 1):
+            r_max = max(R[i], R[i+1])
+            if r_max > 0.25:
+                normal_coupling[i] = 0.02
+            else:
+                normal_coupling[i] = 1.0 - r_max
+                
+        target_angles = self.cpg.step(normal_coupling_weights=normal_coupling, bypass_matrix=None)
+        
+        # Neutralize Locked Offset Curvature
+        mean_q = getattr(self.hormone_engine, 'mean_q_act', np.zeros(self.num_joints))
+        offset_sum = np.sum(R * mean_q)
+        healthy_mask = (R < 0.25)
+        num_healthy = np.sum(healthy_mask)
+        if abs(offset_sum) > 0.04 and num_healthy > 0:
+            c_bias = -offset_sum / num_healthy
+            for j in range(self.num_joints):
+                if healthy_mask[j]:
+                    target_angles[j] += c_bias
+            target_angles = np.clip(target_angles, -RobotConfig.JOINT_LIMIT_MAX, RobotConfig.JOINT_LIMIT_MAX)
+            
         self.last_target_angles = target_angles
         return target_angles, {
             "hormones": H,

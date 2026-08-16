@@ -32,37 +32,82 @@ class LocomotionMetrics:
         t_post = max(0.1, time[-1] - time[idx_fault])
 
         # -------------------------------------------------------------
-        # 1. IEEE T-RO: Heading-Aligned Forward Effective Velocity
-        # Evaluates true linear displacement along primary longitudinal Y-axis
+        # 1. 2D Reference Coordinate Transformation (Heading Alignment)
+        # Rotates global (X, Y) coordinates by -theta_fault so Y' aligns
+        # exactly with pre-fault heading direction at t_fault
         # -------------------------------------------------------------
-        dy_pre = abs(pos_fault[1] - pos_start[1])
-        dy_post = abs(pos_end[1] - pos_fault[1])
-        dy_total = abs(pos_end[1] - pos_start[1])
+        dx_pre = pos_fault[0] - pos_start[0]
+        dy_pre = pos_fault[1] - pos_start[1]
+        theta_fault = float(np.arctan2(dx_pre, dy_pre)) if (abs(dx_pre) > 1e-4 or abs(dy_pre) > 1e-4) else 0.0
 
-        v_pre_fwd = dy_pre / t_pre
-        v_post_fwd = dy_post / t_post
-        v_total_fwd = dy_total / max(0.1, time[-1] - time[0])
+        cos_t = float(np.cos(-theta_fault))
+        sin_t = float(np.sin(-theta_fault))
 
-        # 2D Euclidean fallback distances
-        dp_pre = pos_fault - pos_start
-        dist_pre_2d = np.sqrt(dp_pre[0]**2 + dp_pre[1]**2)
-        dp_post = pos_end - pos_fault
-        dist_post_2d = np.sqrt(dp_post[0]**2 + dp_post[1]**2)
-        dp_total = pos_end - pos_start
-        dist_total_2d = max(0.01, np.sqrt(dp_total[0]**2 + dp_total[1]**2))
+        poss_rel_post = base_poss[idx_fault:] - pos_fault
+        x_rot = cos_t * poss_rel_post[:, 0] - sin_t * poss_rel_post[:, 1]
+        y_rot = sin_t * poss_rel_post[:, 0] + cos_t * poss_rel_post[:, 1]
+
+        dy_pre_dist = float(np.sqrt(dx_pre**2 + dy_pre**2))
+        dy_post = float(abs(y_rot[-1])) if len(y_rot) > 0 else 0.0
+
+        v_pre_fwd = float(dy_pre_dist / t_pre)
+        v_post_fwd = float(dy_post / t_post)
+        v_total_fwd = float(abs(pos_end[1] - pos_start[1]) / max(0.1, time[-1] - time[0]))
+
+        dist_pre_2d = float(dy_pre_dist)
+        dist_post_2d = float(np.sqrt((pos_end[0] - pos_fault[0])**2 + (pos_end[1] - pos_fault[1])**2))
+        dist_total_2d = max(0.01, float(np.sqrt((pos_end[0] - pos_start[0])**2 + (pos_end[1] - pos_start[1])**2)))
 
         # -------------------------------------------------------------
-        # 2. IEEE Access (Dr. Potiwat Standard): Displacement Linearity Index (DI)
-        # Evaluates net directional displacement efficiency vs total 2D path
+        # Heading Deviation / Angular Yaw Drift (Delta theta_yaw)
         # -------------------------------------------------------------
-        x_post = base_poss[idx_fault:, 0]
-        y_post = base_poss[idx_fault:, 1]
-        y_drift_mean = float(np.mean(np.abs(x_post - pos_fault[0])))
-        y_drift_max = float(np.max(np.abs(x_post - pos_fault[0])))
+        if len(x_rot) > 0 and len(y_rot) > 0:
+            x_end_rot = float(x_rot[-1])
+            y_end_rot = float(y_rot[-1])
+            dist_end = float(np.sqrt(x_end_rot**2 + y_end_rot**2))
+            if dist_end > 1e-4:
+                delta_yaw_rad = float(abs(np.arctan2(x_end_rot, y_end_rot)))
+                delta_yaw_signed_rad = float(np.arctan2(x_end_rot, y_end_rot))
+            else:
+                delta_yaw_rad = 0.0
+                delta_yaw_signed_rad = 0.0
+        else:
+            delta_yaw_rad = 0.0
+            delta_yaw_signed_rad = 0.0
 
-        path_len_post = float(np.sum(np.sqrt(np.diff(x_post)**2 + np.diff(y_post)**2))) if len(x_post) > 1 else 0.01
-        di_linear = float(dy_post / max(0.001, dist_post_2d) * 100.0)      # Linearity Index (%) [Dr. Potiwat IEEE Access]
-        di_path = float(dy_post / max(0.001, path_len_post) * 100.0)       # Path Displacement Index (%) [IEEE Access]
+        delta_yaw_deg = float(np.degrees(delta_yaw_rad))
+        delta_yaw_signed_deg = float(np.degrees(delta_yaw_signed_rad))
+
+        if len(x_rot) > 1:
+            post_dists = np.sqrt(x_rot**2 + y_rot**2)
+            valid_mask = post_dists > 0.05
+            if np.any(valid_mask):
+                inst_angles = np.abs(np.arctan2(x_rot[valid_mask], y_rot[valid_mask]))
+                yaw_drift_mean_deg = float(np.degrees(np.mean(inst_angles)))
+            else:
+                yaw_drift_mean_deg = delta_yaw_deg
+        else:
+            yaw_drift_mean_deg = delta_yaw_deg
+
+        # -------------------------------------------------------------
+        # 2. IEEE Access (Dr. Potiwat Standard, Eq. 14): Displacement Index (Di) & Drift
+        # -------------------------------------------------------------
+        x_drift_mean = float(np.mean(np.abs(x_rot)))                        # Lateral Drift along X' axis (m)
+        x_drift_max = float(np.max(np.abs(x_rot)))                          # Peak Max Lateral Drift along X' axis (m)
+        y_drift_mean = float(np.mean(np.abs(y_rot)))                        # Longitudinal Motion Displacement along Y' axis (m)
+        y_drift_max = float(np.max(np.abs(y_rot)))                          # Peak Max Longitudinal Displacement along Y' axis (m)
+
+        x_drift_global_mean = float(np.mean(np.abs(base_poss[idx_fault:, 0] - pos_fault[0])))
+        y_drift_global_mean = float(np.mean(np.abs(base_poss[idx_fault:, 1] - pos_fault[1])))
+
+        dY = dy_post
+        dS = max(0.001, dist_post_2d)
+        dR = max(0.001, float(np.sum(np.sqrt(np.diff(x_rot)**2 + np.diff(y_rot)**2)))) if len(x_rot) > 1 else dS
+        t_exp = max(0.1, float(t_post))
+        v_max = float(nominal_speed)
+
+        di_potiwat = float((dY / dS) * (dY / dR) * (dY / (t_exp * v_max)))
+        di_linear = float(di_potiwat)                                      # Decimal (0.0 - 1.0) per Dr. Potiwat Eq. 14
 
         # -------------------------------------------------------------
         # 3. Nature (Cully et al. 2015): Normalized Self-Performance Recovery Index
@@ -157,27 +202,46 @@ class LocomotionMetrics:
 
         # Return backward-compatible + enriched metric dictionary
         return {
-            # Core Primary Metrics (Journal Synthesized)
-            "v_pre_fwd": float(max(0.001, v_pre_fwd)),
+            # 6 Core Journal Metrics
+            "v_fwd": float(v_post_fwd),
             "v_post_fwd": float(v_post_fwd),
+            "v_pre_fwd": float(max(0.001, v_pre_fwd)),
             "v_pre": float(max(0.001, v_pre_fwd)),               # Alias for backward compatibility
             "v_post": float(v_post_fwd),                        # Alias for backward compatibility
             "recovery_ratio": float(r_perf_clamped),             # Alias for backward compatibility
+            "eta_rec": float(r_perf_clamped),
             "r_perf": float(r_perf_clamped),                     # Nature Normalized Recovery Index
-            "recovery_time": float(t_adapt),                     # Alias for backward compatibility
+            "cost_of_transport": float(cot_mech),                # IEEE T-RO Mechanical COT
+            "cot": float(cot_mech),
+            "cot_mech": float(cot_mech),
+            "total_energy": float(total_energy),
+            "e_total": float(total_energy),
+            "total_mechanical_energy": float(total_energy),
+            "delta_yaw_deg": float(delta_yaw_deg),               # Heading Deviation Delta theta_yaw (deg)
+            "delta_yaw_rad": float(delta_yaw_rad),               # Heading Deviation Delta theta_yaw (rad)
+            "delta_theta_yaw": float(delta_yaw_deg),             # Standard Alias (deg)
+            "delta_theta_yaw_deg": float(delta_yaw_deg),
+            "delta_theta_yaw_rad": float(delta_yaw_rad),
+            "yaw_drift_deg": float(delta_yaw_deg),
+            "yaw_drift_mean_deg": float(yaw_drift_mean_deg),
+            "delta_yaw_signed_rad": float(delta_yaw_signed_rad),
+            "delta_yaw_signed_deg": float(delta_yaw_signed_deg),
             "t_adapt": float(t_adapt),                           # Adaptation Latency (s)
+            "recovery_time": float(t_adapt),                     # Alias for backward compatibility
+            "adaptation_time": float(t_adapt),
+            
+            # Complementary & Backward Compatibility Metrics
             "recovery_success": bool(success),                   # Nature/ICRA Success Criteria
             "performance_loss_auc": float(l_auc),                # Deficit AUC
-            "cost_of_transport": float(cot_mech),                # IEEE T-RO Mechanical COT
-            "cot_mech": float(cot_mech),                         # IEEE T-RO Mechanical COT
-            "y_drift_mean": float(y_drift_mean),                 # IEEE T-RO Lateral Drift Mean
-            "y_drift_max": float(y_drift_max),                   # IEEE T-RO Lateral Drift Max
-            "di_linear": float(di_linear),                       # Dr. Potiwat IEEE Access Linearity Index (%)
-            "di_path": float(di_path),                           # Dr. Potiwat IEEE Access Path Displacement Index (%)
-            "tau_rms": float(tau_rms_intact),                    # IEEE T-MECH Torque Overload
+            "x_drift_mean": float(x_drift_mean),                 # IEEE T-RO Lateral Drift Mean (m)
+            "x_drift_max": float(x_drift_max),                   # IEEE T-RO Lateral Drift Max (m)
+            "y_drift_mean": float(y_drift_mean),                 # IEEE T-RO Longitudinal Motion Mean (m)
+            "y_drift_max": float(y_drift_max),                   # IEEE T-RO Longitudinal Motion Max (m)
+            "di_linear": float(di_linear),                       # Dr. Potiwat IEEE Access Eq. 14 Di (Decimal 0.0 - 1.0)
+            "di_potiwat": float(di_potiwat),                     # Dr. Potiwat IEEE Access Eq. 14 Di (Decimal 0.0 - 1.0)
+            "tau_rms": float(tau_rms_intact),                    # IEEE T-MECH Dynamic Torque Load (Nm)
             "c_hormone": float(c_hormone),                       # Bioinspiration Hormone Contrast
             "jerk_smoothness": float(j_kin),                     # Motion Jerk Smoothness
-            "total_energy": float(total_energy),
             "shape_error": float(e_shape),
             "distance_traveled": float(dist_total_2d),
             "post_fault_distance": float(dy_post)

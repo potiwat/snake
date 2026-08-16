@@ -32,35 +32,34 @@ class CPGConfig:
     
     # Coupling Strengths
     COUPLING_WEIGHT_K0 = 1.20      # Nominal adjacent joint coupling weight
-    BYPASS_WEIGHT_KB = 2.80        # Dynamic bypass coupling weight K_B
+    BYPASS_WEIGHT_KB = 3.20        # Dynamic bypass coupling weight K_B
     
     # Rate limiters for safe adaptation
     MAX_AMP_CHANGE_RATE = 0.15     # rad/s max rate of change of joint amplitude
     MAX_FREQ_CHANGE_RATE = 0.10    # rad/s max rate of change of frequency
 
 class HormoneConfig:
-    # Stimulus Weightings: e_q, e_v, e_tau, P_mech
-    W_Q = 0.44
-    W_V = 0.03
-    W_TAU = 0.44
-    W_P = 0.10
+    # Stimulus Parameters (Kinematic Coherence & Range Deficit)
+    DEADBAND_TOLERANCE = 0.10      # Tolerance before tracking error counts as deficit
+    RATIO_UNDER_THRESH = 0.88      # Threshold for under-movement deficit (locked joint)
+    RATIO_OVER_THRESH = 1.25       # Threshold for over-movement deficit (flailing/limp)
     
-    # Hormone Dynamics
-    ALPHA_H = 0.37                 # Secretion rate from stimulus (α_h, optimal sweep value)
-    D0 = 0.10                      # Linear decay rate
-    KD = 0.07                      # Nonlinear decay coefficient
+    # Hormone Reaction-Diffusion Dynamics
+    ALPHA_H = 1.35                 # Secretion rate from stimulus (alpha_h)
+    D0 = 0.22                      # Linear decay rate
+    KD = 0.12                      # Nonlinear decay coefficient
     EXP_N = 2.0                    # Nonlinear decay exponent
-    DIFFUSION_DH = 0.06            # 1D spatial diffusion coefficient along spine
+    DIFFUSION_DH = 0.035           # 1D spatial diffusion coefficient along spine
     
     # Hill Receptor Activation R = H^m / (Kh^m + H^m)
-    KH = 0.65                      # 50% activation threshold
-    HILL_M = 4.0                   # Hill coefficient (steepness)
+    KH = 0.40                      # 50% activation threshold
+    HILL_M = 6.0                   # Hill coefficient (steepness)
     
     # Reconfiguration Gains
-    GAIN_AMP_DROP_GA = 0.150        # Amplitude reduction factor for failed joint
-    GAIN_NEIGHBOR_GN = 0.95        # Compensation boost for adjacent joints
-    NEIGHBOR_SIGMA = 1.42           # Spatial decay of neighbor compensation
-    GAIN_GLOBAL_FREQ_GW = 0.15     # Global frequency reduction under high stress
+    GAIN_AMP_DROP_GA = 0.90        # Amplitude reduction factor for failed joint
+    GAIN_NEIGHBOR_GN = 1.35        # Compensation boost for adjacent joints
+    NEIGHBOR_SIGMA = 1.10          # Spatial decay of neighbor compensation
+    GAIN_GLOBAL_FREQ_GW = 0.05     # Global frequency reduction under high stress
 
 class SimConfig:
     TIMESTEP = 0.005               # 200 Hz physics simulation rate

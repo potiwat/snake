@@ -5,10 +5,11 @@ Evaluates 2D parameter grids:
   2. Hill Threshold K_h vs Hill Exponent m
 
 Features:
-  - Multi-Core Parallel Execution (multiprocessing.Pool) with safe Windows process teardown.
-  - Dynamically uses calibrated baseline parameters from config.py.
-  - Generates 300-DPI publication 2D Heatmap Figures in results/publication/prelim_figures/stage5_sensitivity_heatmaps.png.
-  - Saves full grid data to results/publication/data/sensitivity_results.json.
+  - Multi-Core Parallel Execution (multiprocessing.Pool) with safe process lifecycle.
+  - Generates both rv_matrix and trec_matrix for complete recovery dynamics characterization.
+  - Outputs results/publication/data/sensitivity_results.json.
+  - Generates publication figures in results/publication/figures/fig11_sensitivity_analysis.png
+    and results/publication/prelim_figures/stage5_sensitivity_heatmaps.png.
 """
 
 import sys
@@ -18,7 +19,10 @@ import time
 from pathlib import Path
 from multiprocessing import Pool, cpu_count
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+# Ensure project root is on sys.path
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 import numpy as np
 import matplotlib
@@ -31,30 +35,26 @@ from simulation.snake_robot import SnakeRobot, FaultType
 from controllers.ahm_cpg_controller import AHMCPGController
 from analysis.metrics import LocomotionMetrics
 
-OUTPUT_PATH = Path("results/publication/data/sensitivity_results.json")
-FIG_DIR = Path("results/publication/prelim_figures")
+OUTPUT_PATH = PROJECT_ROOT / "results" / "publication" / "data" / "sensitivity_results.json"
+FIG_DIR = PROJECT_ROOT / "results" / "publication" / "prelim_figures"
+PUB_FIG_DIR = PROJECT_ROOT / "results" / "publication" / "figures"
 
 
 def evaluate_episode(dh, alpha_h, kh, hill_m, fault_joint=3, duration=60.0, fault_time=18.0, seed=42):
-    """Run episode with specific hormone parameters."""
+    """Run episode with specific hormone parameters using clean instance parameter overrides."""
     np.random.seed(seed)
-    
-    # Override HormoneConfig dynamically
-    orig_dh = HormoneConfig.DIFFUSION_DH
-    orig_alpha = HormoneConfig.ALPHA_H
-    orig_kh = HormoneConfig.KH
-    orig_m = HormoneConfig.HILL_M
-    
-    HormoneConfig.DIFFUSION_DH = float(dh)
-    HormoneConfig.ALPHA_H = float(alpha_h)
-    HormoneConfig.KH = float(kh)
-    HormoneConfig.HILL_M = float(hill_m)
     
     env = None
     try:
         env = SimulationEnvironment(gui=False, env_type=EnvironmentType.FLAT)
         robot = SnakeRobot(physics_client=env.physics_client)
-        controller = AHMCPGController(num_joints=robot.num_joints)
+        controller = AHMCPGController(
+            num_joints=robot.num_joints,
+            dh=dh,
+            alpha_h=alpha_h,
+            kh=kh,
+            hill_m=hill_m
+        )
         
         history = {
             "time": [], "base_position": [], "base_velocity": [],
@@ -88,13 +88,14 @@ def evaluate_episode(dh, alpha_h, kh, hill_m, fault_joint=3, duration=60.0, faul
                 history["target_angles"].append(target_angles.tolist() if hasattr(target_angles, 'tolist') else list(target_angles))
                 history["joint_velocities"].append(sensory["joint_velocities"].tolist())
                 history["joint_torques"].append(applied_torques)
-                history["hormones"].append(ctrl_info.get("hormones", np.zeros(robot.num_joints)).tolist())
-                history["receptors"].append(ctrl_info.get("receptors", np.zeros(robot.num_joints)).tolist())
+                history["hormones"].append(ctrl_info.get("hormones", np.zeros(robot.num_joints)).tolist() if hasattr(ctrl_info.get("hormones", None), 'tolist') else list(ctrl_info.get("hormones", [0]*robot.num_joints)))
+                history["receptors"].append(ctrl_info.get("receptors", np.zeros(robot.num_joints)).tolist() if hasattr(ctrl_info.get("receptors", None), 'tolist') else list(ctrl_info.get("receptors", [0]*robot.num_joints)))
             
-        metrics = LocomotionMetrics.calculate_metrics(history, fault_time=fault_time)
+        metrics = LocomotionMetrics.calculate_metrics(history, fault_time=fault_time, sim_duration=duration)
         return {
             "recovery_ratio": float(metrics["recovery_ratio"]),
             "recovery_time": float(metrics["recovery_time"]),
+            "t_adapt": float(metrics.get("t_adapt", metrics["recovery_time"])),
             "cost_of_transport": float(metrics["cost_of_transport"]),
             "distance_traveled": float(metrics["distance_traveled"])
         }
@@ -104,11 +105,6 @@ def evaluate_episode(dh, alpha_h, kh, hill_m, fault_joint=3, duration=60.0, faul
                 env.close()
             except Exception:
                 pass
-        # Restore original config
-        HormoneConfig.DIFFUSION_DH = orig_dh
-        HormoneConfig.ALPHA_H = orig_alpha
-        HormoneConfig.KH = orig_kh
-        HormoneConfig.HILL_M = orig_m
 
 
 def _sensitivity_worker(args):
@@ -147,7 +143,7 @@ def main():
             tasks_2.append((base_dh, base_alpha, kh, m_val))
 
     all_tasks = tasks_1 + tasks_2
-    num_workers = min(4, max(1, cpu_count()))
+    num_workers = min(6, max(1, cpu_count()))
 
     print(f"  Running {len(all_tasks)} sensitivity episodes across {num_workers} parallel CPU cores...")
     pool = Pool(processes=num_workers)
@@ -157,31 +153,37 @@ def main():
         pool.terminate()
         pool.close()
 
-    # Parse Grid 1
+    # Parse Grid 1: D_h vs alpha_h
     rv_dh_alpha = np.zeros((len(dh_grid), len(alpha_grid)))
+    trec_dh_alpha = np.zeros((len(dh_grid), len(alpha_grid)))
     for dh, alpha_h, kh, hill_m, res in results_list[:len(tasks_1)]:
         r_i = dh_grid.index(dh)
         c_i = alpha_grid.index(alpha_h)
         rv_dh_alpha[r_i, c_i] = res["recovery_ratio"]
+        trec_dh_alpha[r_i, c_i] = res["recovery_time"]
 
-    # Parse Grid 2
+    # Parse Grid 2: K_h vs m
     rv_kh_m = np.zeros((len(kh_grid), len(m_grid)))
+    trec_kh_m = np.zeros((len(kh_grid), len(m_grid)))
     for dh, alpha_h, kh, hill_m, res in results_list[len(tasks_1):]:
         r_i = kh_grid.index(kh)
         c_i = m_grid.index(hill_m)
         rv_kh_m[r_i, c_i] = res["recovery_ratio"]
+        trec_kh_m[r_i, c_i] = res["recovery_time"]
 
-    # Save JSON results
+    # Save JSON results with both rv_matrix and trec_matrix
     json_results = {
         "dh_alpha_grid": {
             "dh_values": dh_grid,
             "alpha_values": alpha_grid,
-            "rv_matrix": rv_dh_alpha.tolist()
+            "rv_matrix": rv_dh_alpha.tolist(),
+            "trec_matrix": trec_dh_alpha.tolist()
         },
         "kh_m_grid": {
             "kh_values": kh_grid,
             "m_values": m_grid,
-            "rv_matrix": rv_kh_m.tolist()
+            "rv_matrix": rv_kh_m.tolist(),
+            "trec_matrix": trec_kh_m.tolist()
         }
     }
     OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -189,7 +191,7 @@ def main():
         json.dump(json_results, f, indent=2)
     print(f"  [OK] Saved Sensitivity Data JSON: {OUTPUT_PATH}")
 
-    # Generate 300-DPI Publication 2D Heatmap Figure
+    # Generate 300-DPI Publication 2D Heatmap Figure (Prelim)
     print("  Generating 300-DPI 2D Sensitivity Heatmap Figure...")
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 5.5))
 
@@ -203,7 +205,6 @@ def main():
     ax1.set_ylabel("1D Spine Diffusion Coefficient $D_h$", fontsize=10, fontweight='bold')
     ax1.set_title("(A) Locomotion Recovery $R_D$: $D_h$ vs $\\alpha_h$", fontsize=11, fontweight='bold')
 
-    # Text annotations on cells
     for r in range(len(dh_grid)):
         for c in range(len(alpha_grid)):
             val = rv_dh_alpha[r, c]
@@ -236,6 +237,13 @@ def main():
     plt.savefig(fig_path, dpi=300)
     plt.close()
     print(f"  [OK] Saved Sensitivity Heatmap Figure: {fig_path}")
+
+    # Generate 4-panel publication figure via analysis.plot_sensitivity
+    try:
+        from analysis.plot_sensitivity import plot_sensitivity
+        plot_sensitivity()
+    except Exception as e:
+        print(f"  [Info] plot_sensitivity call: {e}")
 
     print("\nHyperparameter Sensitivity Analysis Complete.\n")
 
