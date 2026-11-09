@@ -8,12 +8,8 @@ from collections import deque
 from config import HormoneConfig, RobotConfig, SimConfig
 
 class HormoneEngine:
-    def __init__(self, num_joints=RobotConfig.NUM_JOINTS, dh=None, alpha_h=None, kh=None, hill_m=None):
+    def __init__(self, num_joints=RobotConfig.NUM_JOINTS):
         self.num_joints = num_joints
-        self._dh_override = float(dh) if dh is not None else None
-        self._alpha_h_override = float(alpha_h) if alpha_h is not None else None
-        self._kh_override = float(kh) if kh is not None else None
-        self._hill_m_override = float(hill_m) if hill_m is not None else None
         
         # State variables
         self.H = np.zeros(self.num_joints)       # Local hormone concentration
@@ -21,76 +17,57 @@ class HormoneEngine:
         self.R = np.zeros(self.num_joints)       # Hill receptor activation (0 to 1)
         
         # Moving window buffers for 1-cycle averaging
-        window_size = int((1.0 / (SimConfig.CONTROL_TIMESTEP * 1.5)))  # W ≈ 133 steps (~2/3 CPG cycle)
-        self.window_size = max(20, window_size)
-        self.q_tgt_buffers = [deque(maxlen=self.window_size) for _ in range(self.num_joints)]
-        self.q_act_buffers = [deque(maxlen=self.window_size) for _ in range(self.num_joints)]
+        window_size = int((1.0 / (SimConfig.CONTROL_TIMESTEP * 1.5))) # ~ 67 steps for 1 CPG wave
+        self.window_size = max(10, window_size)
+        self.e_q_buffers = [deque(maxlen=self.window_size) for _ in range(self.num_joints)]
+        self.e_v_buffers = [deque(maxlen=self.window_size) for _ in range(self.num_joints)]
+        self.e_tau_buffers = [deque(maxlen=self.window_size) for _ in range(self.num_joints)]
+        self.p_buffers = [deque(maxlen=self.window_size) for _ in range(self.num_joints)]
         
         self.filtered_stimulus = np.zeros(self.num_joints)
-        self.mean_q_act = np.zeros(self.num_joints)
-
-    @property
-    def dh(self):
-        return self._dh_override if self._dh_override is not None else HormoneConfig.DIFFUSION_DH
-
-    @dh.setter
-    def dh(self, val):
-        self._dh_override = float(val) if val is not None else None
-
-    @property
-    def alpha_h(self):
-        return self._alpha_h_override if self._alpha_h_override is not None else HormoneConfig.ALPHA_H
-
-    @alpha_h.setter
-    def alpha_h(self, val):
-        self._alpha_h_override = float(val) if val is not None else None
-
-    @property
-    def kh(self):
-        return self._kh_override if self._kh_override is not None else HormoneConfig.KH
-
-    @kh.setter
-    def kh(self, val):
-        self._kh_override = float(val) if val is not None else None
-
-    @property
-    def hill_m(self):
-        return self._hill_m_override if self._hill_m_override is not None else HormoneConfig.HILL_M
-
-    @hill_m.setter
-    def hill_m(self, val):
-        self._hill_m_override = float(val) if val is not None else None
 
     def update_feedback(self, target_q, actual_q, actual_v, commanded_tau, actual_tau):
-        """Record sensory feedback and compute cycle-averaged kinematic coherence stimulus S_i."""
+        """Record sensory feedback mismatch and compute cycle-averaged stimulus S_i."""
         for i in range(self.num_joints):
-            self.q_tgt_buffers[i].append(target_q[i])
-            self.q_act_buffers[i].append(actual_q[i])
-            self.mean_q_act[i] = np.mean(self.q_act_buffers[i])
+            # Mismatch calculation
+            eq = abs(target_q[i] - actual_q[i])
+            ev = abs(0.0 - actual_v[i]) # reference velocity error magnitude
+            etau = abs(commanded_tau[i] - actual_tau[i]) / RobotConfig.MAX_TORQUE
+            p_mech = abs(actual_tau[i] * actual_v[i]) / (RobotConfig.MAX_TORQUE * RobotConfig.MAX_VELOCITY + 1e-6)
             
-            if len(self.q_tgt_buffers[i]) >= 35:
-                range_tgt = float(np.max(self.q_tgt_buffers[i]) - np.min(self.q_tgt_buffers[i]))
-                range_act = float(np.max(self.q_act_buffers[i]) - np.min(self.q_act_buffers[i]))
-                
-                ratio = range_act / max(0.20, range_tgt)
-                
-                # Deficit triggers if under-moving (locked joint) or over-moving/flailing (limp/partial torque)
-                under_deficit = max(0.0, HormoneConfig.RATIO_UNDER_THRESH - ratio) / 0.70
-                over_deficit = max(0.0, ratio - HormoneConfig.RATIO_OVER_THRESH) / 0.60
-                
-                stim = max(under_deficit, over_deficit)
-                self.filtered_stimulus[i] = min(1.0, stim * 1.20)
-            else:
-                self.filtered_stimulus[i] = 0.0
+            self.e_q_buffers[i].append(eq)
+            self.e_v_buffers[i].append(ev)
+            self.e_tau_buffers[i].append(etau)
+            self.p_buffers[i].append(p_mech)
+            
+            # Compute cycle-averaged mean errors
+            bar_eq = np.mean(self.e_q_buffers[i])
+            bar_ev = np.mean(self.e_v_buffers[i])
+            bar_etau = np.mean(self.e_tau_buffers[i])
+            bar_p = np.mean(self.p_buffers[i])
+            
+            # Normalize tracking errors against acceptable bounds
+            norm_eq = np.clip(bar_eq / (RobotConfig.JOINT_LIMIT_MAX * 0.4), 0.0, 1.0)
+            norm_ev = np.clip(bar_ev / (RobotConfig.MAX_VELOCITY * 0.5), 0.0, 1.0)
+            norm_etau = np.clip(bar_etau, 0.0, 1.0)
+            norm_p = np.clip(bar_p, 0.0, 1.0)
+            
+            # Weighted stimulus
+            S_i = (HormoneConfig.W_Q * norm_eq +
+                   HormoneConfig.W_V * norm_ev +
+                   HormoneConfig.W_TAU * norm_etau +
+                   HormoneConfig.W_P * norm_p)
+                   
+            self.filtered_stimulus[i] = S_i
 
     def step(self, dt=SimConfig.CONTROL_TIMESTEP):
         """Integrate Local & Global Hormone ODEs and compute Hill Receptor Activation."""
         dH = np.zeros(self.num_joints)
-        alpha = self.alpha_h
+        alpha = HormoneConfig.ALPHA_H
         d0 = HormoneConfig.D0
         kd = HormoneConfig.KD
         n = HormoneConfig.EXP_N
-        Dh = self.dh
+        Dh = HormoneConfig.DIFFUSION_DH
         
         for i in range(self.num_joints):
             # Secretion and nonlinear decay: alpha * S_i - (d0 + kd * H_i^n) * H_i
@@ -108,27 +85,15 @@ class HormoneEngine:
             dH[i] = secretion - decay + diffusion
             
         # Euler integration
-        self.H = np.clip(self.H + dH * dt, 0.0, 1.0)
+        self.H = np.clip(self.H + dH * dt, 0.0, 5.0)
         
         # Global Hormone Concentration
-        self.H_G = float(np.mean(self.H))
+        self.H_G = np.mean(self.H)
         
         # Hill Receptor Activation R_i = H_i^m / (Kh^m + H_i^m)
-        m = self.hill_m
-        Kh = self.kh
+        m = HormoneConfig.HILL_M
+        Kh = HormoneConfig.KH
         self.R = (self.H ** m) / ((Kh ** m) + (self.H ** m) + 1e-9)
         self.R = np.clip(self.R, 0.0, 1.0)
-        
-        # Dedicated Receptor Attachments
-        # 1. Heading Steering Bias Receptor
-        half = self.num_joints / 2.0
-        pos_weights = np.array([(i - half + 0.5) for i in range(self.num_joints)])
-        self.R_steer = self.R * pos_weights
-        
-        # 2. Joint Stiffness Receptor
-        self.R_stiff = np.clip(self.R * 1.5, 0.0, 1.0)
-        
-        # 3. Spatial Wavelength Receptor
-        self.R_wave = np.clip(self.R * 0.8, 0.0, 1.0)
         
         return self.H, self.H_G, self.R

@@ -9,14 +9,13 @@ class RobotConfig:
     NUM_JOINTS = 8
     LINK_LENGTH = 0.122    # total body ~ 1.1 m
     LINK_RADIUS = 0.035
-    LINK_MASS = 1.05       # per link mass (kg)
-    TOTAL_MASS = LINK_MASS * NUM_SEGMENTS # total body ~ 9.45 kg
+    LINK_MASS = 1.05       # total body ~ 9.45 kg
     MAX_TORQUE = 8.0       # N*m max joint torque
     MAX_VELOCITY = 10.0    # rad/s max joint speed
     
     # Low-level PD Controller
     KP = 45.0
-    KD = 0.44
+    KD = 4.5
     
     # Joint limits (radians)
     JOINT_LIMIT_MIN = -np.pi / 3.0  # -60 deg
@@ -32,44 +31,43 @@ class CPGConfig:
     
     # Coupling Strengths
     COUPLING_WEIGHT_K0 = 1.20      # Nominal adjacent joint coupling weight
-    BYPASS_WEIGHT_KB = 3.20        # Dynamic bypass coupling weight K_B
+    BYPASS_WEIGHT_KB = 1.60        # Dynamic bypass coupling weight K_B
     
     # Rate limiters for safe adaptation
     MAX_AMP_CHANGE_RATE = 0.15     # rad/s max rate of change of joint amplitude
     MAX_FREQ_CHANGE_RATE = 0.10    # rad/s max rate of change of frequency
 
 class HormoneConfig:
-    # Stimulus Parameters (Kinematic Coherence & Range Deficit)
-    DEADBAND_TOLERANCE = 0.10      # Tolerance before tracking error counts as deficit
-    RATIO_UNDER_THRESH = 0.88      # Threshold for under-movement deficit (locked joint)
-    RATIO_OVER_THRESH = 1.25       # Threshold for over-movement deficit (flailing/limp)
+    # Stimulus Weightings: e_q, e_v, e_tau, P_mech
+    W_Q = 0.40
+    W_V = 0.20
+    W_TAU = 0.30
+    W_P = 0.10
     
-    # Hormone Reaction-Diffusion Dynamics
-    ALPHA_H = 1.35                 # Secretion rate from stimulus (alpha_h)
-    D0 = 0.22                      # Linear decay rate
-    KD = 0.12                      # Nonlinear decay coefficient
+    # Hormone Dynamics
+    ALPHA_H = 0.75                 # Secretion rate from stimulus
+    D0 = 0.04                      # Linear decay rate
+    KD = 0.18                      # Nonlinear decay coefficient
     EXP_N = 2.0                    # Nonlinear decay exponent
-    DIFFUSION_DH = 0.035           # 1D spatial diffusion coefficient along spine
+    DIFFUSION_DH = 0.22            # 1D spatial diffusion coefficient along spine
     
     # Hill Receptor Activation R = H^m / (Kh^m + H^m)
-    KH = 0.40                      # 50% activation threshold
-    HILL_M = 6.0                   # Hill coefficient (steepness)
+    KH = 0.35                      # 50% activation threshold
+    HILL_M = 3.0                   # Hill coefficient (steepness)
     
     # Reconfiguration Gains
-    GAIN_AMP_DROP_GA = 0.90        # Amplitude reduction factor for failed joint
-    GAIN_NEIGHBOR_GN = 1.35        # Compensation boost for adjacent joints
-    NEIGHBOR_SIGMA = 1.10          # Spatial decay of neighbor compensation
-    GAIN_GLOBAL_FREQ_GW = 0.05     # Global frequency reduction under high stress
+    GAIN_AMP_DROP_GA = 0.85        # Amplitude reduction factor for failed joint
+    GAIN_NEIGHBOR_GN = 0.45        # Compensation boost for adjacent joints
+    NEIGHBOR_SIGMA = 1.2           # Spatial decay of neighbor compensation
+    GAIN_GLOBAL_FREQ_GW = 0.25     # Global frequency reduction under high stress
 
 class SimConfig:
     TIMESTEP = 0.005               # 200 Hz physics simulation rate
     CONTROL_TIMESTEP = 0.005       # 200 Hz CPG / Control loop rate
-    DEFAULT_DURATION = 60.0        # Seconds per simulation episode
-    DEFAULT_FAULT_TIME = 18.0      # Seconds into episode when fault is injected
-    DEFAULT_FAULT_JOINT = 3        # Joint 4 (0-indexed 3)
+    DEFAULT_DURATION = 35.0        # Seconds per simulation episode
+    DEFAULT_FAULT_TIME = 10.0      # Seconds into episode when fault is injected
     
     # Ground Contact Physics & Anisotropic Snake Friction
     LATERAL_FRICTION = 0.8
     FORWARD_FRICTION = 0.05        # Low forward friction (anisotropic snake scales)
     SIDEWAYS_FRICTION = 0.95       # High lateral friction (prevents side slipping)
-
