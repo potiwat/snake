@@ -30,19 +30,19 @@ import matplotlib.gridspec as gridspec
 plt.rcParams.update({
     'font.family': 'serif',
     'font.serif': ['Times New Roman', 'DejaVu Serif', 'Liberation Serif'],
-    'font.size': 10,
-    'axes.labelsize': 11,
-    'axes.titlesize': 11,
-    'xtick.labelsize': 9,
-    'ytick.labelsize': 9,
-    'legend.fontsize': 8,
+    'font.size': 11,
+    'axes.labelsize': 12,
+    'axes.titlesize': 12.5,
+    'xtick.labelsize': 10,
+    'ytick.labelsize': 10,
+    'legend.fontsize': 9,
     'figure.dpi': 300,
     'savefig.dpi': 300,
     'savefig.bbox': 'tight',
     'axes.grid': True,
     'grid.alpha': 0.25,
     'grid.linestyle': '--',
-    'lines.linewidth': 1.5,
+    'lines.linewidth': 1.8,
     'mathtext.fontset': 'cm',
 })
 
@@ -159,35 +159,35 @@ def fig02_hormone_heatmap():
     H_max = np.max(H) if np.max(H) > 0 else 1.0
     H_norm = np.clip(H / H_max, 0.0, 1.0)
 
-    fig, ax = plt.subplots(figsize=(7.5, 3.4))
+    fig, ax = plt.subplots(figsize=(5.6, 3.8))
     extent = [t[0], t[-1], 0.5, H.shape[1] + 0.5]
     im = ax.imshow(H_norm.T, aspect='auto', origin='lower', cmap='YlOrRd',
                    extent=extent, interpolation='bicubic', vmin=0, vmax=1.0)
 
     cbar = fig.colorbar(im, ax=ax, pad=0.02)
-    cbar.set_label('Normalized Spinal Hormone $H_i(t) \\in [0, 1]$', rotation=270, labelpad=15, fontweight='bold')
+    cbar.set_label('Hormone $H_i(t) \\in [0, 1]$', rotation=270, labelpad=16, fontweight='bold', fontsize=10.5)
 
-    ax.axvline(x=SimConfig.DEFAULT_FAULT_TIME, color='cyan', linestyle='--', linewidth=1.8,
+    ax.axvline(x=SimConfig.DEFAULT_FAULT_TIME, color='cyan', linestyle='--', linewidth=2.0,
                label='Fault Injected ($t=18.0$s)')
     
     # Annotate spatial diffusion from joint 4
-    ax.annotate('Lesion Site $J_4$\n(Peak Secretion $\\alpha_h S_4$)',
-                xy=(18.5, 4.0), xytext=(23, 2.5),
-                arrowprops=dict(arrowstyle="->", color='black', lw=1.2),
-                fontsize=8, fontweight='bold',
-                bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.85))
+    ax.annotate('Lesion $J_4$\n($\\alpha_h S_4$)',
+                xy=(18.5, 4.0), xytext=(23, 2.3),
+                arrowprops=dict(arrowstyle="->", color='black', lw=1.3),
+                fontsize=9.5, fontweight='bold',
+                bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.9))
 
-    ax.annotate('1D Spinal Diffusion $D_h \\nabla^2 H_i$\n(Neighbor Spreading $J_3, J_5$)',
-                xy=(22.0, 5.0), xytext=(28, 6.8),
-                arrowprops=dict(arrowstyle="->", color='black', lw=1.2),
-                fontsize=8, fontweight='bold',
-                bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.85))
+    ax.annotate('1D Diffusion $D_h \\nabla^2 H_i$\n($J_3, J_5$ spreading)',
+                xy=(22.0, 5.0), xytext=(27, 6.7),
+                arrowprops=dict(arrowstyle="->", color='black', lw=1.3),
+                fontsize=9.5, fontweight='bold',
+                bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.9))
 
-    ax.set_xlabel('Time $t$ (s)')
-    ax.set_ylabel('Spinal Joint Index $i$')
-    ax.set_title('Spatiotemporal Hormone Diffusion Dynamics $H_i(t)$ — Proposed AHM-CPG (C5)', fontweight='bold')
+    ax.set_xlabel('Time $t$ (s)', fontweight='bold', fontsize=11)
+    ax.set_ylabel('Spinal Joint Index $i$', fontweight='bold', fontsize=11)
+    ax.set_title('Spatiotemporal Hormone Diffusion $H_i(t)$', fontweight='bold', fontsize=12)
     ax.set_yticks(range(1, H.shape[1] + 1))
-    ax.legend(loc='upper left', fontsize=8, framealpha=0.9)
+    ax.legend(loc='upper left', fontsize=8.5, framealpha=0.9)
 
     save_publication_figure(fig, "fig02_hormone_heatmap")
 
@@ -266,28 +266,28 @@ def fig04_receptor_heatmap():
     t = np.array(data["history"]["time"])
     R = np.array(data["history"]["receptors"])
 
-    fig, ax = plt.subplots(figsize=(7.5, 3.4))
+    fig, ax = plt.subplots(figsize=(5.6, 3.8))
     extent = [t[0], t[-1], 0.5, R.shape[1] + 0.5]
     im = ax.imshow(R.T, aspect='auto', origin='lower', cmap='RdPu',
                    extent=extent, interpolation='bicubic', vmin=0, vmax=1.0)
 
     cbar = fig.colorbar(im, ax=ax, pad=0.02)
-    cbar.set_label('Hill Receptor Activation $R_i(t) = \\frac{H_i^m}{K_h^m + H_i^m}$', rotation=270, labelpad=16, fontweight='bold')
+    cbar.set_label('Receptor $R_i(t) \\in [0, 1]$', rotation=270, labelpad=16, fontweight='bold', fontsize=10.5)
 
-    ax.axvline(x=SimConfig.DEFAULT_FAULT_TIME, color='cyan', linestyle='--', linewidth=1.8,
+    ax.axvline(x=SimConfig.DEFAULT_FAULT_TIME, color='cyan', linestyle='--', linewidth=2.0,
                label='Fault Injected ($t=18.0$s)')
 
-    ax.annotate('Steep Hill Threshold Gating ($K_h=0.65, m=4.0$)\nSuppresses gait noise; locks onto damaged locus',
+    ax.annotate('Hill Gating ($K_h=0.40, m=6.0$)\nBinary isolation on $J_4$',
                 xy=(18.5, 4.0), xytext=(22, 2.3),
                 arrowprops=dict(arrowstyle="->", color='darkblue', lw=1.3),
-                fontsize=8, fontweight='bold',
-                bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.9))
+                fontsize=9.5, fontweight='bold',
+                bbox=dict(boxstyle="round,pad=0.25", facecolor="white", alpha=0.9))
 
-    ax.set_xlabel('Time $t$ (s)')
-    ax.set_ylabel('Spinal Joint Index $i$')
-    ax.set_title('Nonlinear Hill Receptor Activation $R_i(t)$ — Proposed AHM-CPG (C5)', fontweight='bold')
+    ax.set_xlabel('Time $t$ (s)', fontweight='bold', fontsize=11)
+    ax.set_ylabel('Spinal Joint Index $i$', fontweight='bold', fontsize=11)
+    ax.set_title('Nonlinear Hill Receptor Activation $R_i(t)$', fontweight='bold', fontsize=12)
     ax.set_yticks(range(1, R.shape[1] + 1))
-    ax.legend(loc='upper left', fontsize=8, framealpha=0.9)
+    ax.legend(loc='upper left', fontsize=8.5, framealpha=0.9)
 
     save_publication_figure(fig, "fig04_receptor_heatmap")
 
@@ -351,6 +351,9 @@ def fig05_benchmark_boxplots():
         if mkey == "r_perf":
             add_significance_bracket(ax, 1, 5, 112, 6, "*** p < 0.001", color='black', fontsize=7.5)
             add_significance_bracket(ax, 2, 5, 126, 6, "*** p < 0.001", color='black', fontsize=7.5)
+        elif mkey == "t_adapt":
+            add_significance_bracket(ax, 3, 5, 20.0, 2.2, "*** p < 0.001", color='black', fontsize=7.5)
+            add_significance_bracket(ax, 2, 5, 43.5, 2.0, "*** p < 0.001", color='black', fontsize=7.5)
         elif mkey == "cot":
             add_significance_bracket(ax, 2, 5, 68, 5, "*** p < 0.001", color='black', fontsize=7.5)
             add_significance_bracket(ax, 5, 6, 52, 4, "** p = 0.003", color='black', fontsize=7.5)
@@ -375,24 +378,22 @@ def fig06_generalization():
     ctrls = ["C1", "C2", "C3", "C4", "C5", "C6"]
     modes = sorted(set(r["stress_mode"] for r in records))
     mode_titles = {
-        "intermittent": "Intermittent\nFault",
-        "incline_10deg": "10° Incline\nSlope",
-        "sensor_noise": "Sensor Noise\n(5%)",
-        "mass_perturbation": "Mass Perturb.\n(+35%)",
-        "multi_joint": "Multi-Joint\n(J3+J6)",
-        "high_slip": "High-Slip\nTerrain",
-        "low_friction": "Low Friction\nTerrain"
+        "intermittent": "Intermittent",
+        "incline_10deg": "10° Incline",
+        "sensor_noise": "Noise (5%)",
+        "mass_perturbation": "Mass (+35%)",
+        "multi_joint": "Multi-Joint",
+        "high_slip": "High-Slip",
+        "low_friction": "Low-Friction"
     }
 
     n_modes = len(modes)
-    fig, axes = plt.subplots(1, n_modes, figsize=(3.2 * n_modes, 4.2))
-    if n_modes == 1:
-        axes = [axes]
-
+    fig, axes = plt.subplots(2, 4, figsize=(6.4, 4.6))
+    axes_flat = axes.flatten()
     x = np.arange(len(ctrls))
 
     for idx, mode in enumerate(modes):
-        ax = axes[idx]
+        ax = axes_flat[idx]
         means = []
         stds = []
         for c in ctrls:
@@ -401,19 +402,23 @@ def fig06_generalization():
             means.append(np.mean(vals) if vals else 0.0)
             stds.append(np.std(vals) if vals else 0.0)
 
-        bars = ax.bar(x, means, yerr=stds, capsize=3, color=[COLORS[c] for c in ctrls],
-                      edgecolor='black', linewidth=0.6, alpha=0.85)
+        bars = ax.bar(x, means, yerr=stds, capsize=2.5, color=[COLORS[c] for c in ctrls],
+                      edgecolor='black', linewidth=0.6, alpha=0.88)
         ax.set_xticks(x)
-        ax.set_xticklabels(ctrls, fontweight='bold', fontsize=8.5)
-        ax.set_title(mode_titles.get(mode, mode), fontweight='bold', fontsize=9.5)
-        if idx == 0:
-            ax.set_ylabel('Recovery Ratio $R_{\\mathrm{perf}}$ (%)', fontweight='bold', fontsize=9.5)
+        ax.set_xticklabels(ctrls, fontweight='bold', fontsize=7.5)
+        ax.set_title(mode_titles.get(mode, mode), fontweight='bold', fontsize=9.0)
+        if idx in [0, 4]:
+            ax.set_ylabel('$R_{\\mathrm{perf}}$ (%)', fontweight='bold', fontsize=8.5)
 
-        # Dynamic data-driven headroom per mode to avoid truncation (incline reaches 180%)
         mode_max = (np.max(means) + np.max(stds)) if means else 100.0
         ax.set_ylim(0, max(120.0, mode_max * 1.18))
 
-    plt.suptitle('Generalization Performance across Environmental Stress Regimes (Unseen Dynamics)',
+    # Hide unused 8th subplot and place legend
+    axes_flat[7].axis('off')
+    handles = [plt.Rectangle((0,0),1,1, color=COLORS[c]) for c in ctrls]
+    axes_flat[7].legend(handles, [LABELS[c] for c in ctrls], loc='center', fontsize=7.5, framealpha=0.95)
+
+    plt.suptitle('Environmental Stress Generalization ($R_{\\mathrm{perf}}$)',
                  fontweight='bold', fontsize=11.5)
     plt.tight_layout()
 
@@ -429,15 +434,14 @@ def fig07_fault_location():
         records = json.load(f)
 
     ctrls = ["C1", "C2", "C3", "C4", "C5", "C6"]
-    # Single joint lesion locations in benchmark: 1 (Head J2), 3 (Trunk J4), 7 (Tail J8)
     joints = [1, 3, 7]
     joint_titles = {
-        1: "(a) Anterior Site (Head $J_2$)",
-        3: "(b) Middle Site (Trunk $J_4$)",
-        7: "(c) Posterior Site (Tail $J_8$)"
+        1: "(a) Head ($J_2$)",
+        3: "(b) Mid ($J_4$)",
+        7: "(c) Tail ($J_8$)"
     }
 
-    fig, axes = plt.subplots(1, 3, figsize=(13.5, 4.2), sharey=True)
+    fig, axes = plt.subplots(1, 3, figsize=(5.6, 4.4), sharey=True)
     x = np.arange(len(ctrls))
 
     for idx, j in enumerate(joints):
@@ -449,17 +453,17 @@ def fig07_fault_location():
             r_means.append(np.mean(vals) if vals else 0.0)
             r_stds.append(np.std(vals) if vals else 0.0)
 
-        ax.bar(x, r_means, yerr=r_stds, capsize=3.5, color=[COLORS[c] for c in ctrls],
-               edgecolor='black', linewidth=0.6, alpha=0.85)
+        ax.bar(x, r_means, yerr=r_stds, capsize=3.0, color=[COLORS[c] for c in ctrls],
+               edgecolor='black', linewidth=0.6, alpha=0.88)
         ax.set_xticks(x)
-        ax.set_xticklabels(ctrls, fontweight='bold', fontsize=9)
-        ax.set_title(joint_titles[j], fontweight='bold', fontsize=10)
+        ax.set_xticklabels(ctrls, fontweight='bold', fontsize=8.0)
+        ax.set_title(joint_titles[j], fontweight='bold', fontsize=9.5)
         if idx == 0:
-            ax.set_ylabel('Recovery Ratio $R_{\\mathrm{perf}}$ (%)', fontweight='bold')
+            ax.set_ylabel('Recovery Ratio $R_{\\mathrm{perf}}$ (%)', fontweight='bold', fontsize=9.5)
         ax.set_ylim(0, 135)
 
-    plt.suptitle('Fault Location Sensitivity Analysis: Head vs Middle vs Tail Segment Lesions',
-                 fontweight='bold', fontsize=12)
+    plt.suptitle('Fault Location Sensitivity ($R_{\\mathrm{perf}}$)',
+                 fontweight='bold', fontsize=11.5)
     plt.tight_layout()
 
     save_publication_figure(fig, "fig07_fault_location")
@@ -603,23 +607,23 @@ def fig09_radar_chart():
     angles = np.linspace(0, 2 * np.pi, N, endpoint=False).tolist()
     angles += angles[:1]
 
-    fig, ax = plt.subplots(figsize=(7.5, 7.5), subplot_kw=dict(polar=True))
+    fig, ax = plt.subplots(figsize=(5.2, 4.8), subplot_kw=dict(polar=True))
 
     for c in ctrls:
         values = norm_data[c] + norm_data[c][:1]
-        lw = 2.6 if c == "C5" else 1.4
+        lw = 2.8 if c == "C5" else 1.6
         alpha = 0.95 if c == "C5" else 0.65
         ax.plot(angles, values, 'o-', color=COLORS[c], linewidth=lw,
-                label=LABELS[c], alpha=alpha, markersize=5 if c == "C5" else 3)
+                label=LABELS[c], alpha=alpha, markersize=5.5 if c == "C5" else 3.5)
         if c == "C5":
             ax.fill(angles, values, color=COLORS[c], alpha=0.22)
 
     ax.set_xticks(angles[:-1])
-    ax.set_xticklabels(display_names, fontsize=8.5, fontweight='bold')
+    ax.set_xticklabels(display_names, fontsize=9.5, fontweight='bold')
     ax.set_ylim(0, 1.05)
-    ax.set_title('Comprehensive 6-Axis Locomotion Performance Radar Chart',
-                 fontweight='bold', pad=22, fontsize=11.5)
-    ax.legend(loc='upper right', bbox_to_anchor=(1.36, 1.12), fontsize=7.5)
+    ax.set_title('6-Axis Performance Radar Chart',
+                 fontweight='bold', pad=18, fontsize=12)
+    ax.legend(loc='upper right', bbox_to_anchor=(1.38, 1.15), fontsize=8.0)
 
     save_publication_figure(fig, "fig09_radar_chart")
 
@@ -648,45 +652,45 @@ def fig10_success_heatmap():
             matrix_sr[ci, fi] = np.mean(succ) * 100 if succ else 0
             matrix_yd[ci, fi] = np.mean(yd_vals) if yd_vals else 0
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11.5, 4.6))
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.2, 4.8))
 
     # Panel A: Success Rate
     im1 = ax1.imshow(matrix_sr, cmap='RdYlGn', aspect='auto', vmin=0, vmax=100)
     ax1.set_xticks(range(len(ftypes)))
-    ax1.set_xticklabels([ftype_labels.get(ft, ft) for ft in ftypes], fontweight='bold')
+    ax1.set_xticklabels([ftype_labels.get(ft, ft) for ft in ftypes], fontweight='bold', fontsize=9.0)
     ax1.set_yticks(range(len(ctrls)))
-    ax1.set_yticklabels(ctrls, fontweight='bold')
+    ax1.set_yticklabels(ctrls, fontweight='bold', fontsize=9.5)
 
     for ci in range(len(ctrls)):
         for fi in range(len(ftypes)):
             val = matrix_sr[ci, fi]
             color = 'white' if val < 30 or val > 75 else 'black'
             ax1.text(fi, ci, f'{val:.0f}%', ha='center', va='center',
-                     color=color, fontweight='bold', fontsize=10.5)
+                     color=color, fontweight='bold', fontsize=10.0)
 
-    cbar1 = fig.colorbar(im1, ax=ax1, pad=0.02)
-    cbar1.set_label('Locomotion Success Rate (%)', rotation=270, labelpad=14, fontweight='bold')
-    ax1.set_title(r'(a) Locomotion Recovery Success Rate ($R_{\mathrm{perf}} \geq 35\%$)', fontweight='bold')
+    cbar1 = fig.colorbar(im1, ax=ax1, pad=0.03, shrink=0.85)
+    cbar1.set_label('Success Rate (%)', rotation=270, labelpad=12, fontweight='bold', fontsize=9.5)
+    ax1.set_title(r'(a) Success Rate ($R_{\mathrm{perf}} \geq 35\%$)', fontweight='bold', fontsize=10.5)
 
     # Panel B: Lateral Drift (vmax=7.0m for full range)
     im2 = ax2.imshow(matrix_yd, cmap='YlOrRd_r', aspect='auto', vmin=0, vmax=7.0)
     ax2.set_xticks(range(len(ftypes)))
-    ax2.set_xticklabels([ftype_labels.get(ft, ft) for ft in ftypes], fontweight='bold')
+    ax2.set_xticklabels([ftype_labels.get(ft, ft) for ft in ftypes], fontweight='bold', fontsize=9.0)
     ax2.set_yticks(range(len(ctrls)))
-    ax2.set_yticklabels(ctrls, fontweight='bold')
+    ax2.set_yticklabels(ctrls, fontweight='bold', fontsize=9.5)
 
     for ci in range(len(ctrls)):
         for fi in range(len(ftypes)):
             val = matrix_yd[ci, fi]
             color = 'black' if val < 3.5 else 'white'
-            ax2.text(fi, ci, f'{val:.2f}m', ha='center', va='center',
-                     color=color, fontweight='bold', fontsize=10.5)
+            ax2.text(fi, ci, f'{val:.1f}m', ha='center', va='center',
+                     color=color, fontweight='bold', fontsize=10.0)
 
-    cbar2 = fig.colorbar(im2, ax=ax2, pad=0.02)
-    cbar2.set_label('Mean Lateral Trajectory Drift $Y_{\\mathrm{drift}}$ (m)', rotation=270, labelpad=14, fontweight='bold')
-    ax2.set_title('(b) Lateral Trajectory Drift $Y_{\\mathrm{drift}}$ (Lower = Better)', fontweight='bold')
+    cbar2 = fig.colorbar(im2, ax=ax2, pad=0.03, shrink=0.85)
+    cbar2.set_label('Lateral Drift $Y_{\\mathrm{drift}}$ (m)', rotation=270, labelpad=12, fontweight='bold', fontsize=9.5)
+    ax2.set_title('(b) Lateral Drift $Y_{\\mathrm{drift}}$', fontweight='bold', fontsize=10.5)
 
-    plt.suptitle('Benchmark Evaluation Matrix across Controllers and Fault Injection Modes', fontweight='bold', fontsize=12)
+    plt.suptitle('Success Rate & Heading Drift Matrix', fontweight='bold', fontsize=11.5)
     plt.tight_layout()
 
     save_publication_figure(fig, "fig10_success_heatmap")
@@ -708,7 +712,7 @@ def fig11_limit_cycle_portraits():
     pre_mask = t < 18.0
     post_mask = t >= 22.0
 
-    fig, axes = plt.subplots(2, 2, figsize=(10.5, 9.0))
+    fig, axes = plt.subplots(2, 2, figsize=(5.6, 5.0))
 
     # (a) SO(2) Limit-Cycle Oscillator State Space (x1 vs x2)
     theta_pre = 2.0 * np.pi * 1.0 * t[pre_mask]
@@ -719,45 +723,44 @@ def fig11_limit_cycle_portraits():
     x1_post = 1.25 * np.cos(theta_post)
     x2_post = 1.25 * np.sin(theta_post)
 
-    axes[0, 0].plot(x1_pre[-400:], x2_pre[-400:], color='#2980b9', lw=1.8, label='Pre-Fault Limit Cycle ($r=1.0$)')
-    axes[0, 0].plot([0], [0], 'rx', markersize=8, mew=2, label='Lesion Fixed Point')
-    axes[0, 0].plot(x1_post[-400:], x2_post[-400:], color=COLORS["C5"], lw=2.2, label='Bypass Restored Orbit ($r=1.25$)')
-    axes[0, 0].set_xlabel('Oscillator State $x_1$')
-    axes[0, 0].set_ylabel('Oscillator State $x_2$')
-    axes[0, 0].set_title('(a) $SO(2)$ Oscillator State Space Dynamics', fontweight='bold')
+    axes[0, 0].plot(x1_pre[-400:], x2_pre[-400:], color='#2980b9', lw=1.8, label='Pre-Fault ($r=1.0$)')
+    axes[0, 0].plot([0], [0], 'rx', markersize=7, mew=2, label='Fixed Point')
+    axes[0, 0].plot(x1_post[-400:], x2_post[-400:], color=COLORS["C5"], lw=2.2, label='Bypass ($r=1.25$)')
+    axes[0, 0].set_xlabel('$x_1$', fontweight='bold', fontsize=9.5)
+    axes[0, 0].set_ylabel('$x_2$', fontweight='bold', fontsize=9.5)
+    axes[0, 0].set_title('(a) $SO(2)$ State Space', fontweight='bold', fontsize=10.0)
     axes[0, 0].legend(fontsize=7.5, loc='upper right')
     axes[0, 0].set_xlim(-1.6, 1.6)
     axes[0, 0].set_ylim(-1.6, 1.6)
 
     # (b) Faulted Joint J4 Phase Portrait (q4 vs \dot{q}4)
-    axes[0, 1].plot(np.rad2deg(q5[pre_mask, 3])[-300:], np.rad2deg(qv5[pre_mask, 3])[-300:], color='#2980b9', lw=1.5, label='Pre-Fault Orbit')
-    axes[0, 1].plot(np.rad2deg(q5[post_mask, 3])[-300:], np.rad2deg(qv5[post_mask, 3])[-300:], color='crimson', lw=2.2, label='Fault Collapse ($q_4=0, \\dot{q}_4=0$)')
-    axes[0, 1].set_xlabel('Joint Angle $q_4$ (°)')
-    axes[0, 1].set_ylabel('Joint Velocity $\\dot{q}_4$ (°/s)')
-    axes[0, 1].set_title('(b) Faulted Joint $J_4$ Limit-Cycle Collapse', fontweight='bold')
+    axes[0, 1].plot(np.rad2deg(q5[pre_mask, 3])[-300:], np.rad2deg(qv5[pre_mask, 3])[-300:], color='#2980b9', lw=1.6, label='Pre-Fault')
+    axes[0, 1].plot(np.rad2deg(q5[post_mask, 3])[-300:], np.rad2deg(qv5[post_mask, 3])[-300:], color='crimson', lw=2.2, label='Collapse')
+    axes[0, 1].set_xlabel('$q_4$ (°)', fontweight='bold', fontsize=9.5)
+    axes[0, 1].set_ylabel('$\\dot{q}_4$ (°/s)', fontweight='bold', fontsize=9.5)
+    axes[0, 1].set_title('(b) Faulted Joint $J_4$', fontweight='bold', fontsize=10.0)
     axes[0, 1].legend(fontsize=7.5, loc='upper right')
     axes[0, 1].set_xlim(-65, 65)
 
     # (c) Preceding Neighbor J3 Phase Portrait (q3 vs \dot{q}3)
-    axes[1, 0].plot(np.rad2deg(q5[pre_mask, 2])[-300:], np.rad2deg(qv5[pre_mask, 2])[-300:], color='#2980b9', lw=1.5, label='Pre-Fault ($A_3=34.4^\\circ$)')
-    axes[1, 0].plot(np.rad2deg(q5[post_mask, 2])[-300:], np.rad2deg(qv5[post_mask, 2])[-300:], color=COLORS["C5"], lw=2.2, label='Compensated ($A_3=48.0^\\circ$)')
-    axes[1, 0].set_xlabel('Joint Angle $q_3$ (°)')
-    axes[1, 0].set_ylabel('Joint Velocity $\\dot{q}_3$ (°/s)')
-    axes[1, 0].set_title('(c) Anterior Neighbor $J_3$ Limit-Cycle Expansion', fontweight='bold')
+    axes[1, 0].plot(np.rad2deg(q5[pre_mask, 2])[-300:], np.rad2deg(qv5[pre_mask, 2])[-300:], color='#2980b9', lw=1.6, label='Pre ($34.4^\\circ$)')
+    axes[1, 0].plot(np.rad2deg(q5[post_mask, 2])[-300:], np.rad2deg(qv5[post_mask, 2])[-300:], color=COLORS["C5"], lw=2.2, label='Comp ($48.0^\\circ$)')
+    axes[1, 0].set_xlabel('$q_3$ (°)', fontweight='bold', fontsize=9.5)
+    axes[1, 0].set_ylabel('$\\dot{q}_3$ (°/s)', fontweight='bold', fontsize=9.5)
+    axes[1, 0].set_title('(c) Anterior Neighbor $J_3$', fontweight='bold', fontsize=10.0)
     axes[1, 0].legend(fontsize=7.5, loc='upper right')
     axes[1, 0].set_xlim(-65, 65)
 
     # (d) Succeeding Neighbor J5 Phase Portrait (q5 vs \dot{q}5)
-    axes[1, 1].plot(np.rad2deg(q5[pre_mask, 4])[-300:], np.rad2deg(qv5[pre_mask, 4])[-300:], color='#2980b9', lw=1.5, label='Pre-Fault')
-    axes[1, 1].plot(np.rad2deg(q5[post_mask, 4])[-300:], np.rad2deg(qv5[post_mask, 4])[-300:], color=COLORS["C5"], lw=2.2, label='2-Hop Phase-Locked Orbit')
-    axes[1, 1].set_xlabel('Joint Angle $q_5$ (°)')
-    axes[1, 1].set_ylabel('Joint Velocity $\\dot{q}_5$ (°/s)')
-    axes[1, 1].set_title('(d) Posterior Neighbor $J_5$ Phase-Locked Restoration', fontweight='bold')
+    axes[1, 1].plot(np.rad2deg(q5[pre_mask, 4])[-300:], np.rad2deg(qv5[pre_mask, 4])[-300:], color='#2980b9', lw=1.6, label='Pre-Fault')
+    axes[1, 1].plot(np.rad2deg(q5[post_mask, 4])[-300:], np.rad2deg(qv5[post_mask, 4])[-300:], color=COLORS["C5"], lw=2.2, label='Phase-Locked')
+    axes[1, 1].set_xlabel('$q_5$ (°)', fontweight='bold', fontsize=9.5)
+    axes[1, 1].set_ylabel('$\\dot{q}_5$ (°/s)', fontweight='bold', fontsize=9.5)
+    axes[1, 1].set_title('(d) Posterior Neighbor $J_5$', fontweight='bold', fontsize=10.0)
     axes[1, 1].legend(fontsize=7.5, loc='upper right')
     axes[1, 1].set_xlim(-65, 65)
 
-    plt.suptitle('Spinal Limit-Cycle Phase Portraits: Pre-Fault Orbit, Lesion Collapse, and 2-Hop Bypass Re-Expansion',
-                 fontweight='bold', fontsize=11.5)
+    plt.suptitle('Spinal Limit-Cycle Phase Portraits', fontweight='bold', fontsize=11.5)
     plt.tight_layout()
 
     save_publication_figure(fig, "fig11_limit_cycle_portraits", aliases=["fig11_phase_portraits"])
@@ -777,40 +780,39 @@ def fig12_traveling_wave_heatmap():
     q1_win = np.rad2deg(np.array(d1["history"]["joint_angles"]))[window_mask]
     q5_win = np.rad2deg(np.array(d5["history"]["joint_angles"]))[window_mask]
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13.5, 4.5), sharey=True)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(6.4, 4.8), sharey=True)
     extent = [t_win[0], t_win[-1], 0.5, 8.5]
 
     # Panel A: C1 (Wave fracture)
     im1 = ax1.imshow(q1_win.T, aspect='auto', origin='lower', cmap='coolwarm',
                      extent=extent, interpolation='bicubic', vmin=-45, vmax=45)
-    ax1.axvline(x=SimConfig.DEFAULT_FAULT_TIME, color='black', linestyle='--', linewidth=1.8, label='Fault Injection ($t=18$s)')
-    ax1.annotate('Wave Fracture & Standing Reflection\n(Joint 4 locked at $0^\\circ$)',
+    ax1.axvline(x=SimConfig.DEFAULT_FAULT_TIME, color='black', linestyle='--', linewidth=1.8, label='Fault ($t=18$s)')
+    ax1.annotate('Wave Fracture\n($J_4 = 0^\\circ$)',
                  xy=(18.2, 4.0), xytext=(19.5, 2.0),
                  arrowprops=dict(arrowstyle="->", color='black', lw=1.2),
-                 fontsize=8, fontweight='bold', bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.85))
-    ax1.set_xlabel('Time $t$ (s)')
-    ax1.set_ylabel('Spinal Joint Index $s$')
-    ax1.set_title('(a) C1: Fixed Open-Loop CPG (Wave Fracture & Reflection)', fontweight='bold')
+                 fontsize=8.5, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.9))
+    ax1.set_xlabel('Time $t$ (s)', fontweight='bold', fontsize=10)
+    ax1.set_ylabel('Spinal Joint Index $s$', fontweight='bold', fontsize=10)
+    ax1.set_title('(a) C1: Fixed CPG (Fracture)', fontweight='bold', fontsize=10.5)
     ax1.set_yticks(range(1, 9))
-    ax1.legend(loc='upper left', fontsize=8)
+    ax1.legend(loc='upper left', fontsize=7.5)
 
     # Panel B: C5 (Wave continuity preserved)
     im2 = ax2.imshow(q5_win.T, aspect='auto', origin='lower', cmap='coolwarm',
                      extent=extent, interpolation='bicubic', vmin=-45, vmax=45)
-    ax2.axvline(x=SimConfig.DEFAULT_FAULT_TIME, color='black', linestyle='--', linewidth=1.8, label='Fault Injection ($t=18$s)')
-    ax2.annotate('Unbroken Traveling Wave Crests\n(Bridged via 2-Hop Bypass $K_B=2.80$)',
-                 xy=(22.0, 5.0), xytext=(21.0, 6.5),
+    ax2.axvline(x=SimConfig.DEFAULT_FAULT_TIME, color='black', linestyle='--', linewidth=1.8, label='Fault ($t=18$s)')
+    ax2.annotate('Preserved Wave\n($K_B=3.20$)',
+                 xy=(22.0, 5.0), xytext=(20.5, 6.5),
                  arrowprops=dict(arrowstyle="->", color='black', lw=1.2),
-                 fontsize=8, fontweight='bold', bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.85))
-    ax2.set_xlabel('Time $t$ (s)')
-    ax2.set_title('(b) C5: Proposed AHM-CPG (Preserved Diagonal Traveling Wave)', fontweight='bold')
-    ax2.legend(loc='upper left', fontsize=8)
+                 fontsize=8.5, fontweight='bold', bbox=dict(boxstyle="round,pad=0.2", facecolor="white", alpha=0.9))
+    ax2.set_xlabel('Time $t$ (s)', fontweight='bold', fontsize=10)
+    ax2.set_title('(b) C5: AHM-CPG (Bridged)', fontweight='bold', fontsize=10.5)
+    ax2.legend(loc='upper left', fontsize=7.5)
 
-    cbar = fig.colorbar(im2, ax=[ax1, ax2], pad=0.02)
-    cbar.set_label('Joint Angle $q(s, t)$ (°)', rotation=270, labelpad=15, fontweight='bold')
+    cbar = fig.colorbar(im2, ax=[ax1, ax2], pad=0.03, shrink=0.85)
+    cbar.set_label('Joint Angle $q(s, t)$ (°)', rotation=270, labelpad=14, fontweight='bold', fontsize=9.5)
 
-    plt.suptitle('Spatiotemporal Serpentine Traveling Wave Heatmaps $q(s, t)$ Across Fault Transition',
-                 fontweight='bold', fontsize=12)
+    plt.suptitle('Spatiotemporal Traveling Waves $q(s, t)$', fontweight='bold', fontsize=11.5)
 
     save_publication_figure(fig, "fig12_traveling_wave_heatmap")
 
